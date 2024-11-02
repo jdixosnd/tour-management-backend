@@ -1,0 +1,32 @@
+version: '3'
+
+services:
+
+  tour_management:
+    build: .
+    volumes:
+      - tour_management_project:/tour_management_project_volume
+    networks:  
+      - nginx_network
+    environment:
+      - SECRET_KEY=${tour_management_project_SECRET_KEY}
+      - DOCKER=1
+
+  nginx:
+    image: nginx:1.13
+    ports:
+      - 9300:80
+    volumes:
+      - ./config/nginx/conf.d:/etc/nginx/conf.d
+      - ./static:/static
+    depends_on:
+      - tour_management
+    networks:  
+      - nginx_network
+    
+volumes:
+  tour_management_project:
+
+networks:  
+  nginx_network:
+    driver: bridge
