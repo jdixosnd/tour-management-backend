@@ -42,7 +42,16 @@ def add_location_to_db(data):
                         lng=data['lng'] if 'lng' in data else None)
 
     location.save()
-    data = json.loads(serializers.serialize('json', [location,]))
+    data = {"tour_operator": location.tour_operator.id,
+            "created_by": location.created_by.id,
+            "city": location.city,
+            "state": location.state,
+            "country": location.country,
+            "pin_code": location.pin_code,
+            "name": location.name,
+            "address": location.address,
+            "lng": location.get_lng_float(),
+            "lat": location.get_lat_float()}
     return {
             "code":200,
             "data": data
@@ -55,7 +64,7 @@ def add_location(request):
         if resp['code'] == 400:
             return HttpResponseBadRequest(json.dumps({"error": resp['error'] }), content_type='application/json')
         else:
-            HttpResponse(resp['data'], content_type='application/json')
+            return HttpResponse(json.dumps(resp['data']), content_type='application/json')
 
 
 def update_location_in_db(data):
@@ -162,8 +171,8 @@ def get_locations(request):
                 "pin_code": loc.pin_code,
                 "name": loc.name,
                 "address": loc.address,
-                "lng": float(loc.lng),
-                "lat": float(loc.lat),
+                "lng": loc.get_lng_float(),
+                "lat": loc.get_lat_float(),
                 "created_at": str(loc.created_at)
             })
 

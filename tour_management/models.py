@@ -10,10 +10,7 @@ from django.db import models
 # Feel free to rename the models, but don't rename db_table values or field names.
 from django.db import models
 
-USER_ROLES = (
-    ("manager","Manager"),
-    ("user","User"),
-)
+
 
 BED_TYPE = (
     ('single','Single'),
@@ -49,6 +46,11 @@ PACKAGE_TYPES= (
     ('honeymoon','Honeymoon'),
     ('group','Group'),
 )
+
+USER_ROLES = (
+    ("manager","Manager"),
+    ("user","User"),
+)
 class Touroperator(models.Model):
     id = models.BigAutoField(primary_key=True)
     name = models.CharField(max_length=255)
@@ -64,6 +66,10 @@ class Touroperator(models.Model):
         return self.name
     def get_name(self):
         return self.name
+    def get_max_users(self):
+        return int(self.max_users)
+    def get_account_life_months(self):
+        return int(self.account_life_months)
 
     class Meta:
         db_table = 'TourOperator'
@@ -84,6 +90,7 @@ class User(models.Model):
         return self.name
     def get_name(self):
         return self.name
+    
     
     class Meta:
         db_table = 'User'
@@ -159,6 +166,10 @@ class Location(models.Model):
         return self.name+"("+self.city+", "+self.state+", "+self.country+")"
     def get_name(self):
         return self.name
+    def get_lat_float(self):
+        return float(self.lat) if self.lat is not None else None 
+    def get_lng_float(self):
+        return float(self.lng) if self.lng is not None else None 
     
     class Meta:
         db_table = 'Location'

@@ -10,11 +10,14 @@ from django.urls import path
 from tour_management.views import probe
 from tour_management.controllers import (user, location, destination, hotel,
                                           cardealer, package, event, amenity,
-                                            inclusion, exclusion, policy, transaction)
+                                            inclusion, exclusion, policy, transaction, touroperator)
 
 urlpatterns = [
     url(r'^tour_management/$',
         views.ApplicationNameParser.as_view()),
+        path('touroperator/get/',touroperator.get_tour_operators,name='get_tour_operators'),
+        path('touroperator/add/',touroperator.add_tour_operator,name='add_tour_operator'),
+
         path('user/add/', user.add_user, name='add_user'),
         path('user/get/', user.get_users, name='get_users'),
         path('user/validate/',user.validate_user, name='validate_user'),

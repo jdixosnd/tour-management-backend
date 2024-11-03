@@ -264,6 +264,7 @@ def get_package(request):
             package_data = {
                 "id": package.id,
                 "name": package.name,
+                "destination_id":package.destination_id,
                 "description": package.description,
                 "pax_size": package.pax_size,
                 "contains_travel_fare": package.contains_travel_fare,
