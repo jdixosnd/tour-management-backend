@@ -18,119 +18,46 @@ from django.db import transaction
 import json
 
 
-
-def get_package_old(request):
+def get_packages_from_destination(request):
     result = []
     if request.method == 'POST':
         data = json.loads(request.body.decode("utf-8"))
-        destination_id = None
-        tour_operator_id = None
-        if 'destination_id' in data:
-            destination_id = data['destination_id']
+        destination_id = data.get('destination_id')
+        tour_operator_id = data.get('tour_operator_id')
 
-        if 'tour_operator_id' in data:
-            tour_operator_id = data['tour_operator_id']
-        packages = []
-        if destination_id is not None and tour_operator_id is not None:
-            packages = Package.objects.filter(destination=destination_id).filter(
-                tour_operator_id=tour_operator_id).all()
-        elif tour_operator_id is not None:
-            packages = Package.objects.filter(
-                tour_operator_id=tour_operator_id).all()
-
-        # Apply pagination
+        if not tour_operator_id:
+            return JsonResponse({"error": "tour_operator_id is required."}, status=400)
+        
+        packages = Package.objects.filter(tour_operator_id=tour_operator_id)
+        if not destination_id:
+            return JsonResponse({"error": "destination_id is required."}, status=400)
+        
+        packages = packages.filter(tour_operator_id=tour_operator_id,destination_id=destination_id)
         paginator = PageNumberPagination()
-        paginator.page_size = 10  # Set page size as needed
+        paginator.page_size = 10
         paginated_packages = paginator.paginate_queryset(packages, Request(request))
-
         for package in paginated_packages:
-            itinerary_details = defaultdict(list)
-            day_wise_details=[]
-            destination_details = []
-            hotel_details = []
-            cardealer_details = []
-
-            destinations = DestinationPackageMapping.objects.filter(package_id=package.id).filter(destination_id =destination_id).all()
-            for destination in destinations:
-                destination_details.append({"day":destination.day,"city":destination.city,"state":destination.state})
-                hotels_object = {"day":destination.day,"city":destination.city,"hotels":[]}
-                hotels_in_city = Hotel.objects.filter(tour_operator=tour_operator_id).filter(location__city=destination.city)
-                for hotel in hotels_in_city:
-                    hotel_data = get_hotels_from_db(hotel.id)
-                    hotels_object['hotels'].append(hotel_data)
-                hotel_details.append(hotels_object)
-
-                cardealer_object= {"day":destination.day,"city":destination.city,"cardealer":[]}
-
-                cardealer_in_city = Cardealer.objects.filter(tour_operator=tour_operator_id).filter(location__city=destination.city)
-                for cardealer in cardealer_in_city:
-                    car_data = get_transportdetails_from_db(cardealer.id)
-                    cardealer_object['cardealer'].append({"dealer_name":cardealer.name,"contact_no":cardealer.contact_no,"transport_types":car_data})
-                cardealer_details.append(cardealer_object)
-
-
-            #Hotel.objects.filter()
-            package_itinerary_items = Packageitineraryitem.objects.filter(package = package.id).filter(active=True).all()
-            for pii in package_itinerary_items:
-                if pii.itinerary_item.item_type.lower() == 'event':
-                    itinerary = Event.objects.filter(id = pii.itinerary_item.item_id).first()
-                elif pii.itinerary_item.item_type.lower() == 'sightseeing':
-                    itinerary = SightSeeing.objects.filter(id = pii.itinerary_item.item_id).first()
-                itinerary_details[pii.day].append({"name":itinerary.name, "type":pii.itinerary_item.item_type ,"description": itinerary.description,"charges":float(itinerary.charges),"contact_no":itinerary.contact_no,"sequence":pii.sequence})
-            for day in itinerary_details:
-                itinerary_details[day].sort(key = lambda x:x['sequence'])
-                hotel_options = []
-                cardealers = []
-                for hotel in hotel_details:
-                    if hotel['day'] == day:
-                        hotel_options = hotel['hotels']
-                        break
-                for cardealer in cardealer_details:
-                    if cardealer['day'] == day:
-                        cardealers = cardealer
-                        break
-
-                day_wise_details.append({"day":day,
-                                    "activities":itinerary_details[day],
-                                    "hotel_details":hotel_options,
-                                    "car_dealers":cardealers})
-            ## package inclusions and exclusions
-            inclusions = Inclusion.objects.filter(type="package",type_id=package.id).all()
-            package_inclusions = []
-            for inclusion in inclusions:
-                package_inclusions.append({"id":inclusion.id,"name":inclusion.name,"description":inclusion.description})
-
-            
-            
-            exclusions = Exclusion.objects.filter(type="package",type_id=package.id).all()
-            package_exclusions = []
-            for exclusion in exclusions:
-                package_exclusions.append({"id":exclusion.id,"name":exclusion.name,"description":exclusion.description})
-                 
-            package_data = {
+            result.append({
                 "id": package.id,
                 "name": package.name,
+                "destination_id":package.destination_id,
                 "description": package.description,
                 "pax_size": package.pax_size,
                 "contains_travel_fare": package.contains_travel_fare,
                 "transport_type": package.transport_type,
                 "no_of_days": package.no_of_days,
-                "package_amount": float(package.package_amount),
+                "package_amount": float(package.package_amount or 0),
                 "is_active": package.is_active,
-                "type":package.type,
-                "destination":destination_details,
-                "itinerary_details":day_wise_details,
-                "inclusions":package_inclusions,
-                "exclusions":package_exclusions
-                
-            }
-            
-            # package_data = serializers.serialize('json', [package,])
-            result.append(package_data)
-
-        return HttpResponse(json.dumps(result), content_type='application/json')
-
-
+                "type": package.type
+            })
+        return JsonResponse({"data":result,"pagination": {
+                "count": paginator.page.paginator.count,
+                "num_pages": paginator.page.paginator.num_pages,
+                "current_page": paginator.page.number,
+                "next": paginator.get_next_link(),
+                "previous": paginator.get_previous_link(),
+            }}, safe=False, status=200)
+    
 def get_package(request):
     result = []
     if request.method == 'POST':
@@ -280,7 +207,13 @@ def get_package(request):
             }
             result.append(package_data)
 
-        return JsonResponse(result, safe=False, status=200)
+        return JsonResponse({"data":result,"pagination": {
+                "count": paginator.page.paginator.count,
+                "num_pages": paginator.page.paginator.num_pages,
+                "current_page": paginator.page.number,
+                "next": paginator.get_next_link(),
+                "previous": paginator.get_previous_link(),
+            }}, safe=False, status=200)
 
 def get_or_create_location(tour_operator, created_by, location_data):
     location = Location.objects.filter(

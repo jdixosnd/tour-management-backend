@@ -55,6 +55,7 @@ urlpatterns = [
 
 
         path('package/add/', package.add_package, name='add_package'),
+        path('packages_from_destination/get/',package.get_packages_from_destination,name='get_packages_from_destination'),
         path('package/get/', package.get_package, name='get_package'),
         path('package/update/', package.update_package, name='update_package'),
 
