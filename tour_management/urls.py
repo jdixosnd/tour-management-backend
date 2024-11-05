@@ -10,7 +10,8 @@ from django.urls import path
 from tour_management.views import probe
 from tour_management.controllers import (user, location, destination, hotel,
                                           cardealer, package, event, amenity,
-                                            inclusion, exclusion, policy, transaction, touroperator)
+                                            inclusion, exclusion, policy, transaction, touroperator,
+                                            lead)
 
 urlpatterns = [
     url(r'^tour_management/$',
@@ -62,5 +63,9 @@ urlpatterns = [
         path('transaction/add/',transaction.add_transaction, name='add_transaction'),
         path('transaction/get/',transaction.get_transaction, name='get_transaction'),
         path('transaction/update/',transaction.update_transaction, name='update_transaction'),
+
+        path('lead/add/',lead.add_lead,name='add_lead'),
+        path('lead/get/',lead.get_lead,name='get_lead'),
+
         path('probe/',probe)
      ]

@@ -1,6 +1,5 @@
 from django.contrib import admin
 from .models import *
-from .models import Customer, Transaction, TransactionDayDetails, TransactionItineraryDetails
 
 
 # Register your models here.
@@ -225,3 +224,75 @@ class TransactionItineraryDetailsAdmin(admin.ModelAdmin):
             'fields': ('location_city', 'location_state', 'location_name', 'location_address', 'location_country')
         })
     )
+
+
+@admin.register(Lead)
+class LeadAdmin(admin.ModelAdmin):
+    list_display = ('id', 'customer', 'created_at', 'status')
+    list_filter = ('status', 'created_at')
+    search_fields = ('customer__name', 'customer__email', 'status')
+    ordering = ('-created_at',)
+    readonly_fields = ('created_at',)
+    
+    def customer_name(self, obj):
+        return obj.customer.name
+    customer_name.short_description = 'Customer Name'
+
+@admin.register(LeadPackage)
+class LeadPackageAdmin(admin.ModelAdmin):
+    list_display = ('id', 'lead', 'name', 'destination', 'pax_size', 'package_amount', 'created_at')
+    list_filter = ('type', 'pax_size', 'contains_travel_fare')
+    search_fields = ('name', 'description', 'lead__id', 'destination__name')
+    ordering = ('-created_at',)
+    readonly_fields = ('created_at',)
+    
+    def lead_id(self, obj):
+        return obj.lead.id
+    lead_id.short_description = 'Lead ID'
+
+@admin.register(LeadDestinationMapping)
+class LeadDestinationMappingAdmin(admin.ModelAdmin):
+    list_display = ('id', 'lead_package', 'destination', 'day', 'city', 'state')
+    list_filter = ('day', 'city', 'state')
+    search_fields = ('lead_package__name', 'destination__name', 'city', 'state')
+    ordering = ('day', 'city', 'state')
+    
+    def lead_package_name(self, obj):
+        return obj.lead_package.name
+    lead_package_name.short_description = 'Lead Package Name'
+
+@admin.register(LeadItineraryItem)
+class LeadItineraryItemAdmin(admin.ModelAdmin):
+    list_display = ('id', 'lead_package', 'itinerary_item', 'day', 'sequence', 'created_at')
+    list_filter = ('day', 'sequence')
+    search_fields = ('lead_package__name', 'itinerary_item__description', 'day')
+    ordering = ('day', 'sequence', 'created_at')
+    readonly_fields = ('created_at',)
+    
+    def lead_package_name(self, obj):
+        return obj.lead_package.name
+    lead_package_name.short_description = 'Lead Package Name'
+
+@admin.register(LeadHotelMapping)
+class LeadHotelMappingAdmin(admin.ModelAdmin):
+    list_display = ('id', 'lead_package', 'hotel', 'day', 'selected_by', 'created_at')
+    list_filter = ('day', 'selected_by')
+    search_fields = ('lead_package__name', 'hotel__name', 'selected_by__name', 'day')
+    ordering = ('day', 'created_at')
+    readonly_fields = ('created_at',)
+    
+    def lead_package_name(self, obj):
+        return obj.lead_package.name
+    lead_package_name.short_description = 'Lead Package Name'
+
+@admin.register(LeadCarDealerMapping)
+class LeadCarDealerMappingAdmin(admin.ModelAdmin):
+    list_display = ('id', 'lead_package', 'car_dealer', 'day', 'selected_by', 'created_at')
+    list_filter = ('day', 'selected_by')
+    search_fields = ('lead_package__name', 'car_dealer__name', 'selected_by__name', 'day')
+    ordering = ('day', 'created_at')
+    readonly_fields = ('created_at',)
+    
+    def lead_package_name(self, obj):
+        return obj.lead_package.name
+    lead_package_name.short_description = 'Lead Package Name'

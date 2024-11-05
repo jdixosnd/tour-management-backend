@@ -23,6 +23,11 @@ BED_TYPE = (
     ('trundle','Trundle'),
     ('daybed','Daybed'),
     )
+LEAD_STATUS = (('new','New'),
+    ('followup','Follow-up'),
+    ('active','Active'),
+    ('closed','Closed'),
+    ('cancelled','Cancelled'),)
 ROOM_TYPE = (
     ('studio','Studio'),
     ('standard','Standard'),
@@ -264,6 +269,24 @@ class Hotel(models.Model):
     class Meta:
         db_table = 'Hotel'
 
+class Room(models.Model):
+    id = models.BigAutoField(primary_key=True)
+    name = models.CharField(max_length=100, blank=True, null=True)
+    hotel = models.ForeignKey(Hotel, blank=True, null=True, on_delete=models.CASCADE)
+    tour_operator = models.ForeignKey(Touroperator , blank=True, null=True, on_delete=models.CASCADE)
+    created_by= models.ForeignKey(User,blank=True,null=True, on_delete=models.CASCADE)
+    type = models.CharField(choices=ROOM_TYPE,max_length=100, blank=True, null=True,default='standard')
+    # ADD CAPACITY
+    # ADD BED TYPE
+    capacity = models.DecimalField(max_digits=10, decimal_places=0, blank=True, null=True)
+    bedtype = models.CharField(choices=BED_TYPE,max_length=100, blank=True, null=True)
+    description = models.TextField(blank=True, null=True)
+    rating = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
+    price_per_night = models.CharField(max_length=45, blank=True, null=True)
+
+    class Meta:
+        db_table = 'Room'
+
 class Package(models.Model):
     id = models.BigAutoField(primary_key=True)
     destination = models.ForeignKey(Destination, blank=True, null=True, on_delete=models.CASCADE)
@@ -324,23 +347,7 @@ class Packageitineraryitem(models.Model):
     class Meta:
         db_table = 'packageItineraryItem'
 
-class Room(models.Model):
-    id = models.BigAutoField(primary_key=True)
-    name = models.CharField(max_length=100, blank=True, null=True)
-    hotel = models.ForeignKey(Hotel, blank=True, null=True, on_delete=models.CASCADE)
-    tour_operator = models.ForeignKey(Touroperator , blank=True, null=True, on_delete=models.CASCADE)
-    created_by= models.ForeignKey(User,blank=True,null=True, on_delete=models.CASCADE)
-    type = models.CharField(choices=ROOM_TYPE,max_length=100, blank=True, null=True,default='standard')
-    # ADD CAPACITY
-    # ADD BED TYPE
-    capacity = models.DecimalField(max_digits=10, decimal_places=0, blank=True, null=True)
-    bedtype = models.CharField(choices=BED_TYPE,max_length=100, blank=True, null=True)
-    description = models.TextField(blank=True, null=True)
-    rating = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
-    price_per_night = models.CharField(max_length=45, blank=True, null=True)
 
-    class Meta:
-        db_table = 'Room'
 
 
 
@@ -376,7 +383,7 @@ class PackageCarDealerMapping(models.Model):
 
 class Customer(models.Model):
     id = models.BigAutoField(primary_key=True)
-    tour_operator_id = models.ForeignKey( Touroperator, blank=True, null=True, on_delete=models.CASCADE)
+    tour_operator = models.ForeignKey( Touroperator, blank=True, null=True, on_delete=models.PROTECT)
     name = models.CharField(max_length=45, blank=True, null=True)
     phone = models.CharField(max_length=15, blank=True, null=True)
     email = models.CharField(max_length=45, blank=True, null=True)
@@ -387,6 +394,89 @@ class Customer(models.Model):
     class Meta:
         db_table = 'Customer'
 
+######################################################      LEAD RELATED TABLES          #####################################################################
+class Lead(models.Model):
+    id = models.BigAutoField(primary_key=True),
+    tour_operator = models.ForeignKey(Touroperator, blank=True, null=True, on_delete=models.PROTECT)
+    created_by = models.ForeignKey(User, blank=True, null=True,on_delete=models.PROTECT)
+    customer = models.ForeignKey(Customer, on_delete=models.PROTECT)
+    created_at = models.DateTimeField(auto_now_add=True)
+    status = models.CharField(max_length=50, choices=LEAD_STATUS)  # e.g., 'New', 'Follow-up', 'Closed'
+    class Meta:
+        db_table = 'Lead'
+
+class LeadPackage(models.Model):
+    id = models.BigAutoField(primary_key=True)
+    lead = models.ForeignKey(Lead, on_delete=models.PROTECT)
+    destination = models.ForeignKey(Destination, blank=True, null=True, on_delete=models.PROTECT)
+    tour_operator = models.ForeignKey(Touroperator, blank=True, null=True, on_delete=models.PROTECT)
+    created_by = models.ForeignKey(User, blank=True, null=True,on_delete=models.PROTECT)
+
+    name = models.CharField(max_length=255)
+    description = models.TextField(blank=True, null=True)
+    type = models.CharField(max_length=100, choices=PACKAGE_TYPES, blank=True, null=True)
+    pax_size = models.IntegerField(blank=True, null=True)
+    contains_travel_fare = models.BooleanField(default=False)
+    transport_type = models.CharField(max_length=45, blank=True, null=True)
+    no_of_days = models.IntegerField(blank=True, null=True)
+    package_amount = models.DecimalField(max_digits=15, decimal_places=2, blank=True, null=True)
+    notes = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    class Meta:
+        db_table = 'LeadPackage'
+
+
+class LeadDestinationMapping(models.Model):
+    id = models.BigAutoField(primary_key=True)
+    lead_package = models.ForeignKey(LeadPackage, on_delete=models.PROTECT)
+    tour_operator = models.ForeignKey(Touroperator, blank=True, null=True, on_delete=models.PROTECT)
+
+    destination = models.ForeignKey(Destination, on_delete=models.PROTECT)
+    day = models.IntegerField(blank=True, null=True)
+    city = models.CharField(max_length=255, blank=True, null=True)
+    state = models.CharField(max_length=255, blank=True, null=True)
+    class Meta:
+        db_table = 'LeadDestinationMapping'
+
+
+class LeadItineraryItem(models.Model):
+    id = models.BigAutoField(primary_key=True)
+    lead_package = models.ForeignKey(LeadPackage, on_delete=models.PROTECT)
+    itinerary_item = models.ForeignKey(Itineraryitem, blank=True, null=True, on_delete=models.PROTECT)
+    created_by = models.ForeignKey(User, blank=True, null=True,on_delete=models.PROTECT)
+    day = models.IntegerField(blank=True, null=True)
+    sequence = models.IntegerField(blank=True, null=True)
+    description = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    class Meta:
+        db_table = 'LeadItineraryItem'
+    
+
+class LeadHotelMapping(models.Model):
+    id = models.BigAutoField(primary_key=True)
+    lead_package = models.ForeignKey(LeadPackage, on_delete=models.PROTECT)
+    tour_operator = models.ForeignKey(Touroperator, blank=True, null=True, on_delete=models.PROTECT)
+
+    hotel = models.ForeignKey(Hotel, on_delete=models.PROTECT)
+    day = models.IntegerField()
+    selected_by = models.ForeignKey(User, blank=True, null=True, on_delete=models.PROTECT)
+    created_at = models.DateTimeField(auto_now_add=True)
+    class Meta:
+        db_table = 'LeadHotelMapping'
+
+class LeadCarDealerMapping(models.Model):
+    id = models.BigAutoField(primary_key=True)
+    lead_package = models.ForeignKey(LeadPackage, on_delete=models.PROTECT)
+    tour_operator = models.ForeignKey(Touroperator, blank=True, null=True, on_delete=models.PROTECT)
+
+    car_dealer = models.ForeignKey(Cardealer, on_delete=models.PROTECT)
+    day = models.IntegerField()
+    selected_by = models.ForeignKey(User, blank=True, null=True, on_delete=models.PROTECT)
+    created_at = models.DateTimeField(auto_now_add=True)
+    class Meta:
+        db_table = 'LeadCarDealerMapping'
+
+######################################################   TRANSACTION RELATED TABLES      #####################################################################
 
 
 class Transaction(models.Model):

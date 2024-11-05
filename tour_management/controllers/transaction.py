@@ -18,7 +18,7 @@ def add_transaction(request):
         try:
             with transaction.atomic():
                 # Get and validate the main entities
-                customer = Customer.objects.get(id=data['customer_id'], tour_operator_id=data['tour_operator'])
+                customer = Customer.objects.get(id=data['customer_id'], tour_operator=data['tour_operator'])
                 package = Package.objects.get(id=data['package_id'], tour_operator=data['tour_operator'])
                 destination = Destination.objects.get(id=data['destination_id'], tour_operator_id=data['tour_operator'])
                 created_by = User.objects.get(id=data['created_by'])
@@ -346,7 +346,7 @@ def update_transaction(request):
         try:
             with transaction.atomic():
                 # Get and validate the main entities
-                customer = Customer.objects.get(id=data['customer_id'], tour_operator_id=data['tour_operator'])
+                customer = Customer.objects.get(id=data['customer_id'], tour_operator=data['tour_operator'])
                 package = Package.objects.get(id=data['package_id'], tour_operator=data['tour_operator'])
                 destination = Destination.objects.get(id=data['destination_id'], tour_operator_id=data['tour_operator'])
                 created_by = User.objects.get(id=data['created_by'])

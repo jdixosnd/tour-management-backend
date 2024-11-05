@@ -64,7 +64,8 @@ def get_package(request):
         data = json.loads(request.body.decode("utf-8"))
         destination_id = data.get('destination_id')
         tour_operator_id = data.get('tour_operator_id')
-
+        package_id = data.get('package_id')
+        
         if not tour_operator_id:
             return JsonResponse({"error": "tour_operator_id is required."}, status=400)
 
@@ -72,6 +73,8 @@ def get_package(request):
         packages = Package.objects.filter(tour_operator_id=tour_operator_id)
         if destination_id:
             packages = packages.filter(destination_id=destination_id)
+        if package_id:
+            packages = packages.filter(id=package_id)
 
         # Apply pagination
         paginator = PageNumberPagination()
@@ -249,7 +252,10 @@ def get_or_create_activity(activity_model, tour_operator, created_by, name, desc
             created_by=created_by
         )
     return activity
-
+def get_city_state_from_day(data,day):
+    for d in data:
+        if d['day'] == day:
+            return d['city'],d['state']
 def add_package(request):
     if request.method == 'POST':
         data = json.loads(request.body.decode("utf-8"))
@@ -320,16 +326,21 @@ def add_package(request):
                             item_id = sightseeing.id
 
                         # Create itinerary item and link to package
-                        itinerary_item = Itineraryitem.objects.create(
-                            tour_operator_id=tour_operator,
-                            created_by=created_by,
-                            destination=destination,
-                            city=dest['city'],
-                            state=dest['state'],
-                            item_type=item_type,
-                            item_id=item_id,
-                            description=item_description
-                        )
+
+                        city, state=get_city_state_from_day(data['destination_mapping'],day)
+                       
+                        itinerary_item = Itineraryitem.objects.filter(item_id=item_id, item_type=item_type,city=city,state=state,tour_operator_id=tour_operator,destination=destination).first()
+                        if not itinerary_item:
+                            itinerary_item = Itineraryitem.objects.create(
+                                tour_operator_id=tour_operator,
+                                created_by=created_by,
+                                destination=destination,
+                                city=city,
+                                state=state,
+                                item_type=item_type,
+                                item_id=item_id,
+                                description=item_description
+                            )
 
                         # Link itinerary item to package with sequence
                         Packageitineraryitem.objects.create(
