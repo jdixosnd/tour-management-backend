@@ -83,17 +83,17 @@ def get_package(request):
 
         # Prepare each package data
         for package in paginated_packages:
-            destination_details, hotel_details, cardealer_details, day_wise_details = [], [], [], []
+            hotel_details, cardealer_details, day_wise_details = [], [], []
             itinerary_details = defaultdict(list)
 
             # Get destination mappings
             destinations = DestinationPackageMapping.objects.filter(package_id=package.id)
             for destination in destinations:
-                destination_details.append({
-                    "day": destination.day,
-                    "city": destination.city,
-                    "state": destination.state
-                })
+                #destination_details.append({
+                #    "day": destination.day,
+                #    "city": destination.city,
+                #    "state": destination.state
+                #})
 
                 # Get only hotels mapped to this package and tour operator
                 hotels_in_package = PackageHotelMapping.objects.filter(
@@ -171,10 +171,12 @@ def get_package(request):
                 # Find matching hotel and cardealer details for each day
                 hotels = next((item['hotels'] for item in hotel_details if item['day'] == day), [])
                 cardealers = next((item['cardealer'] for item in cardealer_details if item['day'] == day), [])
-
+                destionation =  next((dest for dest in destinations if dest.day == day), [])
                 # Append day-wise itinerary details
                 day_wise_details.append({
                     "day": day,
+                    "city":destionation.city,
+                    "state":destionation.state,
                     "activities": activities,
                     "hotel_details": hotels,
                     "car_dealers": cardealers
@@ -203,7 +205,7 @@ def get_package(request):
                 "package_amount": float(package.package_amount or 0),
                 "is_active": package.is_active,
                 "type": package.type,
-                "destination": destination_details,
+                #"destination": destination_details,
                 "itinerary_details": day_wise_details,
                 "inclusions": package_inclusions,
                 "exclusions": package_exclusions

@@ -20,166 +20,6 @@ def get_city_state_from_day(data,day):
     for d in data:
         if d['day'] == day:
             return d['city'],d['state']
-        
-def get_package(request):
-    result = []
-    if request.method == 'POST':
-        data = json.loads(request.body.decode("utf-8"))
-        destination_id = data.get('destination_id')
-        tour_operator_id = data.get('tour_operator_id')
-        package_id = data.get('package_id')
-        
-        if not tour_operator_id:
-            return JsonResponse({"error": "tour_operator_id is required."}, status=400)
-
-        # Fetch packages based on filters
-        packages = Package.objects.filter(tour_operator_id=tour_operator_id)
-        if destination_id:
-            packages = packages.filter(destination_id=destination_id)
-        if package_id:
-            packages = packages.filter(id=package_id)
-
-        # Apply pagination
-        paginator = PageNumberPagination()
-        paginator.page_size = 10
-        paginated_packages = paginator.paginate_queryset(packages, Request(request))
-
-        # Prepare each package data
-        for package in paginated_packages:
-            destination_details, hotel_details, cardealer_details, day_wise_details = [], [], [], []
-            itinerary_details = defaultdict(list)
-
-            # Get destination mappings
-            destinations = DestinationPackageMapping.objects.filter(package_id=package.id)
-            for destination in destinations:
-                destination_details.append({
-                    "day": destination.day,
-                    "city": destination.city,
-                    "state": destination.state
-                })
-
-                # Get only hotels mapped to this package and tour operator
-                hotels_in_package = PackageHotelMapping.objects.filter(
-                    package=package, tour_operator_id=tour_operator_id, hotel__location__city=destination.city
-                ).select_related('hotel')
-
-                hotel_data = {
-                    "day": destination.day,
-                    "city": destination.city,
-                    "hotels": [get_hotel_by_id(hotel_mapping.hotel.id) for hotel_mapping in hotels_in_package]
-                }
-                hotel_details.append(hotel_data)
-
-                # Get only car dealers mapped to this package and tour operator
-                cardealers_in_package = PackageCarDealerMapping.objects.filter(
-                    package=package, tour_operator_id=tour_operator_id, car_dealer__location__city=destination.city
-                ).select_related('car_dealer')
-
-                cardealer_data = {
-                    "day": destination.day,
-                    "city": destination.city,
-                    "cardealer": [
-                        {
-                            "dealer_name": dealer_mapping.car_dealer.name,
-                            "contact_no": dealer_mapping.car_dealer.contact_no,
-                            "transport_types": get_transportdetails_from_db(dealer_mapping.car_dealer.id)
-                        }
-                        for dealer_mapping in cardealers_in_package
-                    ]
-                }
-                cardealer_details.append(cardealer_data)
-
-            # Get package itinerary items
-            package_itinerary_items = Packageitineraryitem.objects.filter(
-                package=package.id, active=True
-            )
-            for pii in package_itinerary_items:
-                itinerary = None
-                if pii.itinerary_item.item_type.lower() == 'event':
-                    itinerary = Event.objects.filter(id=pii.itinerary_item.item_id).first()
-                elif pii.itinerary_item.item_type.lower() == 'sightseeing':
-                    itinerary = SightSeeing.objects.filter(id=pii.itinerary_item.item_id).first()
-
-                if itinerary:
-                    if itinerary.location is not None:
-                        location = {
-                             "id": itinerary.location.id,
-                            "tour_operator_id": itinerary.location.tour_operator.id,
-                            "created_by_id": itinerary.location.created_by.id,
-                            "city": itinerary.location.city,
-                            "state": itinerary.location.state,
-                            "country": itinerary.location.country,
-                            "pin_code": itinerary.location.pin_code,
-                            "name": itinerary.location.name,
-                            "address": itinerary.location.address,
-                            "lng": itinerary.location.lat,
-                            "lat": itinerary.location.lng,
-                        }
-                    else:
-                        location = {}
-                    itinerary_details[pii.day].append({
-                        "name": itinerary.name,
-                        "type": pii.itinerary_item.item_type,
-                        "description": itinerary.description,
-                        "charges": float(itinerary.charges or 0),
-                        "contact_no": itinerary.contact_no,
-                        "sequence": pii.sequence,
-                        "location": location
-                    })
-
-            # Sort itinerary details by sequence within each day
-            for day, activities in itinerary_details.items():
-                activities.sort(key=lambda x: x['sequence'])
-
-                # Find matching hotel and cardealer details for each day
-                hotels = next((item['hotels'] for item in hotel_details if item['day'] == day), [])
-                cardealers = next((item['cardealer'] for item in cardealer_details if item['day'] == day), [])
-
-                # Append day-wise itinerary details
-                day_wise_details.append({
-                    "day": day,
-                    "activities": activities,
-                    "hotel_details": hotels,
-                    "car_dealers": cardealers
-                })
-
-            # Get inclusions and exclusions for the package
-            package_inclusions = [
-                {"id": inc.id, "name": inc.name, "description": inc.description}
-                for inc in Inclusion.objects.filter(type="package", type_id=package.id)
-            ]
-            package_exclusions = [
-                {"id": exc.id, "name": exc.name, "description": exc.description}
-                for exc in Exclusion.objects.filter(type="package", type_id=package.id)
-            ]
-
-            # Structure final package data
-            package_data = {
-                "id": package.id,
-                "name": package.name,
-                "destination_id":package.destination_id,
-                "description": package.description,
-                "pax_size": package.pax_size,
-                "contains_travel_fare": package.contains_travel_fare,
-                "transport_type": package.transport_type,
-                "no_of_days": package.no_of_days,
-                "package_amount": float(package.package_amount or 0),
-                "is_active": package.is_active,
-                "type": package.type,
-                "destination": destination_details,
-                "itinerary_details": day_wise_details,
-                "inclusions": package_inclusions,
-                "exclusions": package_exclusions
-            }
-            result.append(package_data)
-
-        return JsonResponse({"data":result,"pagination": {
-                "count": paginator.page.paginator.count,
-                "num_pages": paginator.page.paginator.num_pages,
-                "current_page": paginator.page.number,
-                "next": paginator.get_next_link(),
-                "previous": paginator.get_previous_link(),
-            }}, safe=False, status=200)
 
 def get_or_create_location(tour_operator, created_by, location_data):
     location = Location.objects.filter(
@@ -224,17 +64,17 @@ def get_lead(request):
             lead_package = LeadPackage.objects.get(id=lead_package_id)
             lead = Lead.objects.get(id=lead_package.lead.id)
             tour_operator_id = lead.tour_operator.id
-            destination_details, hotel_details, cardealer_details, day_wise_details = [], [], [], []
+            hotel_details, cardealer_details, day_wise_details = [], [], []
             itinerary_details = defaultdict(list)
 
             # Destination Mapping
             destination_mappings = LeadDestinationMapping.objects.filter(lead_package_id=lead_package)
             for destination in destination_mappings:
-                destination_details.append({
-                    "day": destination.day,
-                    "city": destination.city,
-                    "state": destination.state
-                })
+                #destination_details.append({
+                #    "day": destination.day,
+                #    "city": destination.city,
+                #    "state": destination.state
+                #})
                 hotels_in_package = LeadHotelMapping.objects.filter(
                     lead_package=lead_package, tour_operator_id=tour_operator_id, hotel__location__city=destination.city
                 ).select_related('hotel')
@@ -307,10 +147,13 @@ def get_lead(request):
                 # Find matching hotel and cardealer details for each day
                 hotels = next((item['hotels'] for item in hotel_details if item['day'] == day), [])
                 cardealers = next((item['cardealer'] for item in cardealer_details if item['day'] == day), [])
+                destionation =  next((dest for dest in destination_mappings if dest.day == day), [])
 
                 # Append day-wise itinerary details
                 day_wise_details.append({
-                    "day": day,
+                    "day": day, 
+                    "city":destionation.city,
+                    "state":destionation.state,
                     "activities": activities,
                     "hotel_details": hotels,
                     "car_dealers": cardealers
@@ -336,7 +179,7 @@ def get_lead(request):
                 "no_of_days": lead_package.no_of_days,
                 "package_amount": float(lead_package.package_amount or 0),
                 "type": lead_package.type,
-                "destination": destination_details,
+                #"destination": destination_details,
                 "itinerary_details": day_wise_details,
                 "inclusions": package_inclusions,
                 "exclusions": package_exclusions
