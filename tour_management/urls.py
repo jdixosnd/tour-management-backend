@@ -67,5 +67,6 @@ urlpatterns = [
         path('lead/add/',lead.add_lead,name='add_lead'),
         path('lead/get/',lead.get_lead,name='get_lead'),
         path('image/upload/',images.upload_images,name='upload_images'),
+        path('image/get/',images.get_images,name='get_images'),
         path('probe/',probe)
      ]

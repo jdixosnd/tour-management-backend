@@ -18,6 +18,7 @@ from django.views.decorators.csrf import csrf_exempt
 from PIL import Image
 import io
 from django.core.files.uploadedfile import InMemoryUploadedFile
+
 @csrf_exempt
 def upload_images(request):
     if request.method == 'POST':
@@ -98,6 +99,48 @@ def upload_images(request):
             return JsonResponse({"error": "Invalid tour operator ID"}, status=400)
         except TourOperatorQuota.DoesNotExist:
             return JsonResponse({"error": "Quota configuration missing for the tour operator"}, status=500)
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
+
+    return JsonResponse({"error": "Invalid request method"}, status=405)
+
+@csrf_exempt
+def get_images(request):
+    if request.method == 'POST':
+        data = json.loads(request.body.decode("utf-8"))
+        
+        # Validate required fields
+        tour_operator_id = data.get("tour_operator_id")
+        module = data.get("module")
+
+        if not all([tour_operator_id, module]):
+            return JsonResponse({"error": "tour_operator_id and module are required"}, status=400)
+
+        try:
+            # Retrieve tour operator
+            tour_operator = Touroperator.objects.get(id=tour_operator_id)
+
+            # Filter images based on tour_operator and module
+            images = ImageMetadata.objects.filter(
+                tour_operator=tour_operator,
+                module=module
+            ).order_by("order")
+
+            # Prepare response data
+            response_data = [
+                {
+                    "id": image.id,
+                    "description": image.description,
+                    "order": image.order,
+                    "image_url": image.image_path.url  # Assumes media files are served with .url attribute
+                }
+                for image in images
+            ]
+
+            return JsonResponse({"images": response_data}, status=200)
+
+        except Touroperator.DoesNotExist:
+            return JsonResponse({"error": "Invalid tour operator ID"}, status=400)
         except Exception as e:
             return JsonResponse({"error": str(e)}, status=500)
 
