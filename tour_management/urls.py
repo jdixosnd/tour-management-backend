@@ -12,7 +12,7 @@ from tour_management.controllers import (user, location, destination, hotel,
                                           cardealer, package, event, amenity,
                                             inclusion, exclusion, policy, transaction, touroperator,
                                             lead)
-
+from tour_management import images
 urlpatterns = [
     url(r'^tour_management/$',
         views.ApplicationNameParser.as_view()),
@@ -66,6 +66,6 @@ urlpatterns = [
 
         path('lead/add/',lead.add_lead,name='add_lead'),
         path('lead/get/',lead.get_lead,name='get_lead'),
-
+        path('image/upload/',images.upload_images,name='upload_images'),
         path('probe/',probe)
      ]

@@ -1,6 +1,6 @@
 from django.contrib import admin
 from .models import *
-
+from django.utils.html import format_html
 
 # Register your models here.
 
@@ -296,3 +296,76 @@ class LeadCarDealerMappingAdmin(admin.ModelAdmin):
     def lead_package_name(self, obj):
         return obj.lead_package.name
     lead_package_name.short_description = 'Lead Package Name'
+
+@admin.register(ImageMetadata)
+class ImageMetadataAdmin(admin.ModelAdmin):
+    list_display = (
+        'id', 
+        'tour_operator', 
+        'module', 
+        'record_id', 
+        'image_preview',  # Display image preview
+        'upload_date', 
+        'description', 
+        'order'
+    )
+    list_filter = ('module', 'tour_operator')
+    search_fields = ('record_id', 'description', 'tour_operator__name')
+    ordering = ('-upload_date',)
+    readonly_fields = ('upload_date',)
+
+    def get_queryset(self, request):
+        # Customize queryset for additional filtering or ordering if needed
+        queryset = super().get_queryset(request)
+        return queryset.select_related('tour_operator')
+
+    def image_preview(self, obj):
+        # Display image preview in list_display
+        if obj.image_path:
+            return format_html(f'<img src="{obj.image_path.url}" width="100" height="100" />')
+        return "No Image"
+    image_preview.short_description = 'Image Preview'
+
+    def save_model(self, request, obj, form, change):
+        # Ensure the order field is automatically se    t based on the latest image if order not specified
+        if not obj.order:
+            last_order = ImageMetadata.objects.filter(
+                tour_operator=obj.tour_operator, module=obj.module, record_id=obj.record_id
+            ).order_by('-order').first()
+            obj.order = last_order.order + 1 if last_order else 1
+        super().save_model(request, obj, form, change)
+
+class TourOperatorQuotaAdmin(admin.ModelAdmin):
+    list_display = (
+        'tour_operator',
+        'max_images_destination',
+        'max_images_package',
+        'max_images_hotel',
+        'max_images_room',
+        'max_images_car_dealer',
+        'max_images_event',
+        'max_images_sightseeing',
+    )
+    list_filter = ('tour_operator',)
+    search_fields = ('tour_operator__name',)
+
+    fieldsets = (
+        (None, {
+            'fields': ('tour_operator',),
+            'description': 'Select the tour operator to set quota limits.'
+        }),
+        ('Image Upload Quotas', {
+            'fields': (
+                'max_images_destination',
+                'max_images_package',
+                'max_images_hotel',
+                'max_images_room',
+                'max_images_car_dealer',
+                'max_images_event',
+                'max_images_sightseeing',
+            ),
+            'description': 'Specify the maximum number of images allowed per module for this tour operator.'
+        }),
+    )
+
+admin.site.register(TourOperatorQuota, TourOperatorQuotaAdmin)

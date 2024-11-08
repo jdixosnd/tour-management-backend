@@ -594,3 +594,36 @@ class TransactionItineraryDetails(models.Model):
     class Meta:
         db_table = 'TransactionItineraryDetails'
 
+
+class ImageMetadata(models.Model):
+    MODULE_CHOICES = [
+        ('destination', 'Destination'),
+        ('package', 'Package'),
+        ('hotel', 'Hotel'),
+        ('room', 'Room'),
+        ('car_dealer', 'Car Dealer'),
+        ('event', 'Event'),
+        ('sightseeing', 'Sightseeing'),
+    ]
+    
+    tour_operator = models.ForeignKey(Touroperator, on_delete=models.CASCADE)
+    module = models.CharField(max_length=50, choices=MODULE_CHOICES)
+    record_id = models.BigIntegerField()  # Foreign key to the actual record
+    image_path = models.ImageField(upload_to="images/%Y/%m/%d")
+    upload_date = models.DateTimeField(auto_now_add=True)
+    description = models.TextField(blank=True, null=True)
+    order = models.PositiveIntegerField(default=0)  # For displaying images in a specific order
+
+    class Meta:
+        db_table = 'ImageMetadata'
+        #unique_together = ('tour_operator', 'module', 'record_id', 'order')
+
+class TourOperatorQuota(models.Model):
+    tour_operator = models.OneToOneField(Touroperator, on_delete=models.CASCADE)
+    max_images_destination = models.PositiveIntegerField(default=5)
+    max_images_package = models.PositiveIntegerField(default=3)
+    max_images_hotel = models.PositiveIntegerField(default=10)
+    max_images_room = models.PositiveIntegerField(default=10)
+    max_images_car_dealer = models.PositiveIntegerField(default=3)
+    max_images_event = models.PositiveIntegerField(default=3)
+    max_images_sightseeing = models.PositiveIntegerField(default=3)
