@@ -18,6 +18,8 @@ from django.views.decorators.csrf import csrf_exempt
 from PIL import Image
 import io
 from django.core.files.uploadedfile import InMemoryUploadedFile
+import os
+from django.conf import settings
 
 @csrf_exempt
 def upload_images(request):
@@ -141,6 +143,42 @@ def get_images(request):
 
         except Touroperator.DoesNotExist:
             return JsonResponse({"error": "Invalid tour operator ID"}, status=400)
+        except Exception as e:
+            return JsonResponse({"error": str(e)}, status=500)
+
+    return JsonResponse({"error": "Invalid request method"}, status=405)
+
+
+@csrf_exempt
+def delete_image(request):
+    if request.method == 'POST':
+        data = json.loads(request.body.decode("utf-8"))
+        
+        # Check if image_id is provided in the request
+        image_id = data.get("image_id")
+        if not image_id:
+            return JsonResponse({"error": "image_id is required"}, status=400)
+
+        try:
+            # Retrieve the image entry from the database
+            image = ImageMetadata.objects.get(id=image_id)
+            
+            # Capture the image path before deletion
+            image_path = os.path.join(settings.MEDIA_ROOT, str(image.image_path))
+
+            # Delete the entry from the database
+            image.delete()
+            
+            # Check if file exists on the server and remove it
+            if os.path.exists(image_path):
+                os.remove(image_path)
+            else:
+                return JsonResponse({"warning": "Image file not found on server"}, status=200)
+
+            return JsonResponse({"message": "Image deleted successfully"}, status=200)
+
+        except ImageMetadata.DoesNotExist:
+            return JsonResponse({"error": "Image entry not found in the database"}, status=404)
         except Exception as e:
             return JsonResponse({"error": str(e)}, status=500)
 
