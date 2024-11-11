@@ -315,6 +315,8 @@ class DestinationPackageMapping(models.Model):
     day = models.IntegerField(blank=True, null=True)
     city = models.CharField(max_length=255, blank=True, null=True)
     state = models.CharField(max_length=255, blank=True, null=True)
+    title = models.CharField(max_length=512, blank=True, null=True)
+    description= models.TextField(blank=True, null=True)
     class Meta:
         db_table = 'DestinationPackageMapping'
 
@@ -362,7 +364,7 @@ class PackageHotelMapping(models.Model):
 
     class Meta:
         db_table = 'PackageHotelMapping'
-        unique_together = ('package', 'hotel', 'tour_operator')
+        #unique_together = ('package', 'hotel', 'tour_operator')
 
 
 class PackageCarDealerMapping(models.Model):
@@ -377,7 +379,7 @@ class PackageCarDealerMapping(models.Model):
 
     class Meta:
         db_table = 'PackageCarDealerMapping'
-        unique_together = ('package', 'car_dealer', 'tour_operator')
+        #unique_together = ('package', 'car_dealer', 'tour_operator')
 
 
 

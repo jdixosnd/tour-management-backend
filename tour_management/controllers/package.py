@@ -97,7 +97,7 @@ def get_package(request):
 
                 # Get only hotels mapped to this package and tour operator
                 hotels_in_package = PackageHotelMapping.objects.filter(
-                    package=package, tour_operator_id=tour_operator_id, hotel__location__city=destination.city
+                    package=package, tour_operator_id=tour_operator_id, hotel__location__city=destination.city,day = destination.day
                 ).select_related('hotel')
 
                 hotel_data = {
@@ -109,7 +109,7 @@ def get_package(request):
 
                 # Get only car dealers mapped to this package and tour operator
                 cardealers_in_package = PackageCarDealerMapping.objects.filter(
-                    package=package, tour_operator_id=tour_operator_id, car_dealer__location__city=destination.city
+                    package=package, tour_operator_id=tour_operator_id, car_dealer__location__city=destination.city,day = destination.day
                 ).select_related('car_dealer')
 
                 cardealer_data = {
@@ -163,20 +163,29 @@ def get_package(request):
                         "sequence": pii.sequence,
                         "location": location
                     })
-
+                else:
+                    itinerary_details[pii.day] = []
             # Sort itinerary details by sequence within each day
-            for day, activities in itinerary_details.items():
+            for destination in destinations:
+                day= destination.day
+                try:
+                    activities = itinerary_details[day]
+                except:
+                    activities = []
+                
                 activities.sort(key=lambda x: x['sequence'])
 
                 # Find matching hotel and cardealer details for each day
                 hotels = next((item['hotels'] for item in hotel_details if item['day'] == day), [])
                 cardealers = next((item['cardealer'] for item in cardealer_details if item['day'] == day), [])
-                destionation =  next((dest for dest in destinations if dest.day == day), [])
+                #destionation =  next((dest for dest in destinations if dest.day == day), [])
                 # Append day-wise itinerary details
                 day_wise_details.append({
                     "day": day,
-                    "city":destionation.city,
-                    "state":destionation.state,
+                    "city":destination.city,
+                    "state":destination.state,
+                    "title":destination.title,
+                    "description":destination.description,
                     "activities": activities,
                     "hotel_details": hotels,
                     "car_dealers": cardealers
@@ -242,7 +251,7 @@ def get_or_create_location(tour_operator, created_by, location_data):
     return location
 
 def get_or_create_activity(activity_model, tour_operator, created_by, name, description, location, charges, contact_no):
-    activity = activity_model.objects.filter(name=name, tour_operator=tour_operator).first()
+    activity = activity_model.objects.filter(name=name,description=description, tour_operator=tour_operator).first()
     if not activity:
         activity = activity_model.objects.create(
             name=name,
@@ -258,12 +267,13 @@ def get_city_state_from_day(data,day):
     for d in data:
         if d['day'] == day:
             return d['city'],d['state']
+        
 def add_package(request):
     if request.method == 'POST':
         data = json.loads(request.body.decode("utf-8"))
 
         # Validate required fields
-        required_fields = ["tour_operator_id", "created_by", "name", "type", "destination_id", "destination_mapping", "itinerary_items"]
+        required_fields = ["tour_operator_id", "created_by", "name", "type", "destination_id",  "itinerary_items"]
         missing_fields = [field for field in required_fields if field not in data]
         if missing_fields:
             return JsonResponse({"error": f"Missing fields: {', '.join(missing_fields)}"}, status=400)
@@ -292,20 +302,29 @@ def add_package(request):
                 )
 
                 # Add Destination mappings
-                for dest in data['destination_mapping']:
-                    DestinationPackageMapping.objects.create(
-                        package_id=package,
-                        destination_id=destination,
-                        tour_operator_id=tour_operator,
-                        day=dest['day'],
-                        city=dest['city'],
-                        state=dest['state']
-                    )
+                #for dest in data['destination_mapping']:
+                #    DestinationPackageMapping.objects.create(
+                #        package_id=package,
+                #        destination_id=destination,
+                #        tour_operator_id=tour_operator,
+                #        day=dest['day'],
+                #        city=dest['city'],
+                #        state=dest['state']
+                #    )
 
                 # Add Itinerary Items
                 for itinerary in data['itinerary_items']:
                     day = itinerary['day']
-                    
+                    DestinationPackageMapping.objects.create(
+                        package_id=package,
+                        destination_id=destination,
+                        tour_operator_id=tour_operator,
+                        day=itinerary['day'],
+                        city=itinerary['city'],
+                        state=itinerary['state'],
+                        title = itinerary['title'],
+                        description = itinerary['description']
+                    )
                     # Process activities within each day
                     for activity in itinerary['activities']:
                         item_type = activity['type'].lower()
@@ -329,7 +348,7 @@ def add_package(request):
 
                         # Create itinerary item and link to package
 
-                        city, state=get_city_state_from_day(data['destination_mapping'],day)
+                        city, state=itinerary['city'],itinerary['state'] #get_city_state_from_day(data['destination_mapping'],day)
                        
                         itinerary_item = Itineraryitem.objects.filter(item_id=item_id, item_type=item_type,city=city,state=state,tour_operator_id=tour_operator,destination=destination).first()
                         if not itinerary_item:
@@ -426,7 +445,7 @@ def update_package(request):
         data = json.loads(request.body.decode("utf-8"))
 
         # Validate required fields
-        required_fields = ["id", "tour_operator_id", "created_by", "name", "type", "destination_id", "destination_mapping", "itinerary_items"]
+        required_fields = ["id", "tour_operator_id", "created_by", "name", "type", "destination_id",  "itinerary_items"]
         missing_fields = [field for field in required_fields if field not in data]
         if missing_fields:
             return JsonResponse({"error": f"Missing fields: {', '.join(missing_fields)}"}, status=400)
@@ -455,19 +474,29 @@ def update_package(request):
 
                 # Update Destination Mappings
                 DestinationPackageMapping.objects.filter(package_id=package).delete()
-                for dest in data['destination_mapping']:
-                    DestinationPackageMapping.objects.create(
-                        package_id=package,
-                        destination_id=destination,
-                        tour_operator_id=tour_operator,
-                        day=dest['day'],
-                        city=dest['city'],
-                        state=dest['state']
-                    )
+                #for dest in data['destination_mapping']:
+                    #DestinationPackageMapping.objects.create(
+                    #    package_id=package,
+                    #    destination_id=destination,
+                    #    tour_operator_id=tour_operator,
+                    #    day=dest['day'],
+                    #    city=dest['city'],
+                    #    state=dest['state']
+                    #)
 
                 # Process Itinerary Items day by day
                 for itinerary in data['itinerary_items']:
                     day = itinerary['day']
+                    DestinationPackageMapping.objects.create(
+                        package_id=package,
+                        destination_id=destination,
+                        tour_operator_id=tour_operator,
+                        day=day,
+                        city=itinerary['city'],
+                        state=itinerary['state'],
+                        title = itinerary['title'],
+                        description = itinerary['description']
+                    )
                     updated_items = []
 
                     # Process activities within each day
