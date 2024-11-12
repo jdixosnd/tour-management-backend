@@ -76,7 +76,7 @@ def get_lead(request):
                 #    "state": destination.state
                 #})
                 hotels_in_package = LeadHotelMapping.objects.filter(
-                    lead_package=lead_package, tour_operator_id=tour_operator_id, hotel__location__city=destination.city
+                    lead_package=lead_package, tour_operator_id=tour_operator_id, hotel__location__city=destination.city, day = destination.day
                 ).select_related('hotel')
                 hotel_data = {
                     "day": destination.day,
@@ -87,7 +87,7 @@ def get_lead(request):
 
 
                 cardealers_in_package = LeadCarDealerMapping.objects.filter(
-                    lead_package=lead_package, tour_operator_id=tour_operator_id, car_dealer__location__city=destination.city
+                    lead_package=lead_package, tour_operator_id=tour_operator_id, car_dealer__location__city=destination.city ,day = destination.day
                 ).select_related('car_dealer')
 
                 cardealer_data = {
@@ -141,19 +141,27 @@ def get_lead(request):
                         "location": location
                     })
                 # Sort itinerary details by sequence within each day
-            for day, activities in itinerary_details.items():
+            for destination in destination_mappings:
+                day = destination.day
+                try:
+                    activities = itinerary_details[day]
+                except:
+                    activities = []
+                #for day, activities in itinerary_details.items():
                 activities.sort(key=lambda x: x['sequence'])
 
                 # Find matching hotel and cardealer details for each day
                 hotels = next((item['hotels'] for item in hotel_details if item['day'] == day), [])
                 cardealers = next((item['cardealer'] for item in cardealer_details if item['day'] == day), [])
-                destionation =  next((dest for dest in destination_mappings if dest.day == day), [])
+                #destionation =  next((dest for dest in destination_mappings if dest.day == day), [])
 
                 # Append day-wise itinerary details
                 day_wise_details.append({
                     "day": day, 
-                    "city":destionation.city,
-                    "state":destionation.state,
+                    "city":destination.city,
+                    "state":destination.state,
+                    "title":destination.title,
+                    "description":destination.description,
                     "activities": activities,
                     "hotel_details": hotels,
                     "car_dealers": cardealers
@@ -197,7 +205,7 @@ def add_lead(request):
         data = json.loads(request.body.decode("utf-8"))
 
         # Validate required fields
-        required_fields = ["tour_operator_id", "created_by", "customer_id", "name", "type", "destination_id", "destination_mapping", "itinerary_items"]
+        required_fields = ["tour_operator_id", "created_by", "customer_id", "name", "type", "destination_id",  "itinerary_items"]
         missing_fields = [field for field in required_fields if field not in data]
         if missing_fields:
             return JsonResponse({"error": f"Missing fields: {', '.join(missing_fields)}"}, status=400)
@@ -236,20 +244,30 @@ def add_lead(request):
                 )
 
                 # Process destination mappings
-                for dest in data['destination_mapping']:
-                    LeadDestinationMapping.objects.create(
-                        lead_package=lead_package,
-                        destination=destination,
-                        tour_operator=tour_operator,
-                        day=dest['day'],
-                        city=dest['city'],
-                        state=dest['state']
-                    )
+                #for dest in data['destination_mapping']:
+                #    LeadDestinationMapping.objects.create(
+                #        lead_package=lead_package,
+                #        destination=destination,
+                #        tour_operator=tour_operator,
+                #        day=dest['day'],
+                #        city=dest['city'],
+                #        state=dest['state']
+                #    )
 
                 # Process itinerary items
                 for itinerary in data['itinerary_items']:
                     day = itinerary['day']
-                    
+                    LeadDestinationMapping.objects.create(
+                        lead_package=lead_package,
+                        destination=destination,
+                        tour_operator=tour_operator,
+                        day=itinerary['day'],
+                        city=itinerary['city'],
+                        state=itinerary['state'],
+                        title = itinerary['title'],
+                        description = itinerary['description']
+
+                    )
                     # Handle each activity within the day
                     for activity in itinerary['activities']:
                         item_type = activity['type'].lower()
@@ -271,7 +289,8 @@ def add_lead(request):
                             sightseeing = get_or_create_activity(SightSeeing, tour_operator, created_by, item_name, item_description, location, charges, contact_no)
                             item_id = sightseeing.id
 
-                        city, state=get_city_state_from_day(data['destination_mapping'],day)
+                        city, state=itinerary['city'] ,itinerary['state']
+                        #get_city_state_from_day(data['destination_mapping'],day)
                         itinerary_item = Itineraryitem.objects.filter(item_id=item_id, item_type=item_type,city=city,state=state,tour_operator_id=tour_operator,destination=destination).first()
                         if not itinerary_item:
                             itinerary_item = Itineraryitem.objects.create(

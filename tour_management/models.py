@@ -437,6 +437,9 @@ class LeadDestinationMapping(models.Model):
     day = models.IntegerField(blank=True, null=True)
     city = models.CharField(max_length=255, blank=True, null=True)
     state = models.CharField(max_length=255, blank=True, null=True)
+    title = models.CharField(max_length=512, blank=True, null=True)
+    description= models.TextField(blank=True, null=True)
+
     class Meta:
         db_table = 'LeadDestinationMapping'
 
