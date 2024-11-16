@@ -22,7 +22,7 @@ urlpatterns = [
         path('user/add/', user.add_user, name='add_user'),
         path('user/get/', user.get_users, name='get_users'),
         path('user/validate/',user.validate_user, name='validate_user'),
-
+        path('user/update/',user.update_user,name='update_user'),
         path('location/add/', location.add_location, name='add_location'),
         path('location/get/', location.get_locations, name='get_locations'),
         path('location/update/',location.update_location, name='update_location'),

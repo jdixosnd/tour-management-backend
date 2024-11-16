@@ -88,6 +88,7 @@ class User(models.Model):
     role = models.CharField(max_length=50, blank=True, null=True,default='user',choices = USER_ROLES)
     is_active = models.BooleanField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now=True)
+    modified_at = models.DateTimeField(blank=True, null=True)
     mobileno = models.CharField(max_length=12, blank=True, null=True)
     username = models.CharField(max_length=45, blank=True, null=True)
 
