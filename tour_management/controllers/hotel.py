@@ -515,10 +515,10 @@ def get_hotels(request):
                         "id": room.id,
                         "name": room.name,
                         "type": room.type,
-                        "capacity": room.capacity,
+                        "capacity": int(room.capacity),
                         "bedtype": room.bedtype,
                         "description": room.description,
-                        "rating": room.rating,
+                        "rating": int(room.rating),
                         "price_per_night": room.price_per_night,
                         "amenities": room_amenities,
                         "inclusions": room_inclusions,
@@ -532,7 +532,7 @@ def get_hotels(request):
                     "id": hotel.id,
                     "name": hotel.name,
                     "description": hotel.description,
-                    "ratings": hotel.ratings,
+                    "ratings": int(hotel.ratings),
                     "website": hotel.website,
                     "phoneno": hotel.phoneno,
                     "location": {
@@ -553,8 +553,9 @@ def get_hotels(request):
                 }
                 hotels_data.append(hotel_data)
 
-            # Return success response
-            return JsonResponse(hotels_data, safe=False, status=200)
+        # Return success response
+        return HttpResponse(json.dumps({"code":200,"data":hotels_data}),content_type='application/json')
+
 
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
