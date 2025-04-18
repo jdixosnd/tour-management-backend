@@ -1,7 +1,7 @@
 from __future__ import unicode_literals
 from django.http import HttpResponse, HttpResponseBadRequest
 import json
-from .models import User, Touroperator,TourOperatorQuota, ImageMetadata, PackageCarDealerMapping,Itineraryitem, PackageHotelMapping, Package, Event, SightSeeing, Packageitineraryitem, DestinationPackageMapping, Hotel, Cardealer, Inclusion, Exclusion
+from .models import User, Touroperator,TourOperatorQuota, ImageMetadata, PackageCarDealerMapping,Itineraryitem, PackageHotelMapping, Package, Event, SightSeeing, Packageitineraryitem, DestinationPackageMapping, Cardealer, Inclusion, Exclusion, Hotel, Room, Destination
 from django.core.exceptions import ValidationError
 from django.contrib.auth.hashers import make_password, check_password
 from django.core import serializers
@@ -89,6 +89,71 @@ def upload_images(request):
                     order=order
                 )
 
+                # Update the image_ids field of the corresponding entity
+                if module == 'hotel':
+                    try:
+                        hotel = Hotel.objects.get(id=record_id)
+                        if hotel.image_ids is None:
+                            hotel.image_ids = []
+                        hotel.image_ids.append(image_metadata.id)
+                        hotel.save(update_fields=['image_ids'])
+                    except Hotel.DoesNotExist:
+                        pass
+                elif module == 'room':
+                    try:
+                        room = Room.objects.get(id=record_id)
+                        if room.image_ids is None:
+                            room.image_ids = []
+                        room.image_ids.append(image_metadata.id)
+                        room.save(update_fields=['image_ids'])
+                    except Room.DoesNotExist:
+                        pass
+                elif module == 'package':
+                    try:
+                        package = Package.objects.get(id=record_id)
+                        if package.image_ids is None:
+                            package.image_ids = []
+                        package.image_ids.append(image_metadata.id)
+                        package.save(update_fields=['image_ids'])
+                    except Package.DoesNotExist:
+                        pass
+                elif module == 'destination':
+                    try:
+                        destination = Destination.objects.get(id=record_id)
+                        if destination.image_ids is None:
+                            destination.image_ids = []
+                        destination.image_ids.append(image_metadata.id)
+                        destination.save(update_fields=['image_ids'])
+                    except Destination.DoesNotExist:
+                        pass
+                elif module == 'car_dealer':
+                    try:
+                        cardealer = Cardealer.objects.get(id=record_id)
+                        if cardealer.image_ids is None:
+                            cardealer.image_ids = []
+                        cardealer.image_ids.append(image_metadata.id)
+                        cardealer.save(update_fields=['image_ids'])
+                    except Cardealer.DoesNotExist:
+                        pass
+                elif module == 'event':
+                    try:
+                        event = Event.objects.get(id=record_id)
+                        if event.image_ids is None:
+                            event.image_ids = []
+                        event.image_ids.append(image_metadata.id)
+                        event.save(update_fields=['image_ids'])
+                    except Event.DoesNotExist:
+                        pass
+                elif module == 'sightseeing':
+                    try:
+                        sightseeing = SightSeeing.objects.get(id=record_id)
+                        if sightseeing.image_ids is None:
+                            sightseeing.image_ids = []
+                        sightseeing.image_ids.append(image_metadata.id)
+                        sightseeing.save(update_fields=['image_ids'])
+                    except SightSeeing.DoesNotExist:
+                        pass
+
                 response_data.append({
                     "message": "Image uploaded successfully",
                     "image_id": image_metadata.id,
@@ -110,10 +175,12 @@ def upload_images(request):
 def get_images(request):
     if request.method == 'POST':
         data = json.loads(request.body.decode("utf-8"))
-        
+
         # Validate required fields
         tour_operator_id = data.get("tour_operator_id")
         module = data.get("module")
+        record_id = data.get("record_id")  # Optional: specific record ID
+        include_binary = data.get("include_binary", False)  # Optional: include binary data
 
         if not all([tour_operator_id, module]):
             return JsonResponse({"error": "tour_operator_id and module are required"}, status=400)
@@ -122,22 +189,62 @@ def get_images(request):
             # Retrieve tour operator
             tour_operator = Touroperator.objects.get(id=tour_operator_id)
 
-            # Filter images based on tour_operator and module
-            images = ImageMetadata.objects.filter(
-                tour_operator=tour_operator,
-                module=module
-            ).order_by("order")
+            # Get the entity based on the module and record_id
+            entity = None
+            if record_id:
+                if module == 'hotel':
+                    entity = Hotel.objects.filter(id=record_id).first()
+                elif module == 'room':
+                    entity = Room.objects.filter(id=record_id).first()
+                elif module == 'package':
+                    entity = Package.objects.filter(id=record_id).first()
+                elif module == 'destination':
+                    entity = Destination.objects.filter(id=record_id).first()
+                elif module == 'car_dealer':
+                    entity = Cardealer.objects.filter(id=record_id).first()
+                elif module == 'event':
+                    entity = Event.objects.filter(id=record_id).first()
+                elif module == 'sightseeing':
+                    entity = SightSeeing.objects.filter(id=record_id).first()
+
+            # If entity is found and has image_ids, use them to fetch images
+            if entity and entity.image_ids:
+                images = ImageMetadata.objects.filter(id__in=entity.image_ids).order_by("order")
+            else:
+                # Build query filter
+                query_filter = {
+                    'tour_operator': tour_operator,
+                    'module': module
+                }
+
+                # Add record_id filter if provided
+                if record_id:
+                    query_filter['record_id'] = record_id
+
+                # Filter images based on criteria
+                images = ImageMetadata.objects.filter(**query_filter).order_by("order")
 
             # Prepare response data
-            response_data = [
-                {
+            response_data = []
+            for image in images:
+                image_data = {
                     "id": image.id,
                     "description": image.description,
                     "order": image.order,
                     "image_url": image.image_path.url  # Assumes media files are served with .url attribute
                 }
-                for image in images
-            ]
+
+                # Include binary data if requested
+                if include_binary:
+                    try:
+                        import base64
+                        with open(image.image_path.path, 'rb') as img_file:
+                            image_data["image_binary"] = base64.b64encode(img_file.read()).decode('utf-8')
+                    except Exception as e:
+                        # If there's an error reading the file, continue without binary data
+                        image_data["image_binary_error"] = str(e)
+
+                response_data.append(image_data)
 
             return JsonResponse({"images": response_data}, status=200)
 
@@ -153,7 +260,7 @@ def get_images(request):
 def delete_image(request):
     if request.method == 'POST':
         data = json.loads(request.body.decode("utf-8"))
-        
+
         # Check if image_id is provided in the request
         image_id = data.get("image_id")
         if not image_id:
@@ -162,13 +269,74 @@ def delete_image(request):
         try:
             # Retrieve the image entry from the database
             image = ImageMetadata.objects.get(id=image_id)
-            
+
+            # Remove the image ID from the image_ids field of the corresponding entity
+            module = image.module
+            record_id = image.record_id
+
+            if module == 'hotel':
+                try:
+                    hotel = Hotel.objects.get(id=record_id)
+                    if hotel.image_ids and image_id in hotel.image_ids:
+                        hotel.image_ids.remove(image_id)
+                        hotel.save(update_fields=['image_ids'])
+                except Hotel.DoesNotExist:
+                    pass
+            elif module == 'room':
+                try:
+                    room = Room.objects.get(id=record_id)
+                    if room.image_ids and image_id in room.image_ids:
+                        room.image_ids.remove(image_id)
+                        room.save(update_fields=['image_ids'])
+                except Room.DoesNotExist:
+                    pass
+            elif module == 'package':
+                try:
+                    package = Package.objects.get(id=record_id)
+                    if package.image_ids and image_id in package.image_ids:
+                        package.image_ids.remove(image_id)
+                        package.save(update_fields=['image_ids'])
+                except Package.DoesNotExist:
+                    pass
+            elif module == 'destination':
+                try:
+                    destination = Destination.objects.get(id=record_id)
+                    if destination.image_ids and image_id in destination.image_ids:
+                        destination.image_ids.remove(image_id)
+                        destination.save(update_fields=['image_ids'])
+                except Destination.DoesNotExist:
+                    pass
+            elif module == 'car_dealer':
+                try:
+                    cardealer = Cardealer.objects.get(id=record_id)
+                    if cardealer.image_ids and image_id in cardealer.image_ids:
+                        cardealer.image_ids.remove(image_id)
+                        cardealer.save(update_fields=['image_ids'])
+                except Cardealer.DoesNotExist:
+                    pass
+            elif module == 'event':
+                try:
+                    event = Event.objects.get(id=record_id)
+                    if event.image_ids and image_id in event.image_ids:
+                        event.image_ids.remove(image_id)
+                        event.save(update_fields=['image_ids'])
+                except Event.DoesNotExist:
+                    pass
+            elif module == 'sightseeing':
+                try:
+                    sightseeing = SightSeeing.objects.get(id=record_id)
+                    if sightseeing.image_ids and image_id in sightseeing.image_ids:
+                        sightseeing.image_ids.remove(image_id)
+                        sightseeing.save(update_fields=['image_ids'])
+                except SightSeeing.DoesNotExist:
+                    pass
+
             # Capture the image path before deletion
             image_path = os.path.join(settings.MEDIA_ROOT, str(image.image_path))
 
             # Delete the entry from the database
             image.delete()
-            
+
             # Check if file exists on the server and remove it
             if os.path.exists(image_path):
                 os.remove(image_path)

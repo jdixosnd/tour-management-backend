@@ -66,7 +66,7 @@ class Touroperator(models.Model):
     renewal_date =  models.DateTimeField(null=True,blank=True)
     account_life_months = models.DecimalField(max_digits=10, decimal_places=0, blank=True, null=True)
     created_at = models.DateTimeField(auto_now=True)
-    
+
     def __str__(self):
         return self.name
     def get_name(self):
@@ -96,8 +96,8 @@ class User(models.Model):
         return self.name
     def get_name(self):
         return self.name
-    
-    
+
+
     class Meta:
         db_table = 'User'
 
@@ -115,7 +115,7 @@ class ContactInfo(models.Model):
         return self.name+"("+self.name+"("+self.phone+")"
     def get_name(self):
         return self.name
-    
+
     class Meta:
         db_table = 'ContactInfo'
 
@@ -173,10 +173,10 @@ class Location(models.Model):
     def get_name(self):
         return self.name
     def get_lat_float(self):
-        return float(self.lat) if self.lat is not None else None 
+        return float(self.lat) if self.lat is not None else None
     def get_lng_float(self):
-        return float(self.lng) if self.lng is not None else None 
-    
+        return float(self.lng) if self.lng is not None else None
+
     class Meta:
         db_table = 'Location'
         #unique_together = (('tour_operator', 'name','city', 'country'),)
@@ -189,9 +189,31 @@ class Cardealer(models.Model):
     name = models.CharField(max_length=255)
     contact_no = models.CharField(max_length=15, blank=True, null=True)
     created_at = models.DateTimeField(auto_now=True)
+    image_ids = models.JSONField(default=list, blank=True, null=True)  # List of image IDs
 
     class Meta:
         db_table = 'CarDealer'
+
+    def get_images(self):
+        """Get all images associated with this car dealer."""
+        from .models import ImageMetadata
+        if not self.image_ids:
+            return ImageMetadata.objects.none()
+        return ImageMetadata.objects.filter(id__in=self.image_ids).order_by('order')
+
+    def add_image_id(self, image_id):
+        """Add an image ID to this car dealer."""
+        if self.image_ids is None:
+            self.image_ids = []
+        if image_id not in self.image_ids:
+            self.image_ids.append(image_id)
+            self.save(update_fields=['image_ids'])
+
+    def remove_image_id(self, image_id):
+        """Remove an image ID from this car dealer."""
+        if self.image_ids and image_id in self.image_ids:
+            self.image_ids.remove(image_id)
+            self.save(update_fields=['image_ids'])
 
 class CarType(models.Model):
     id = models.BigAutoField(primary_key=True)
@@ -210,11 +232,39 @@ class Destination(models.Model):
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now=True)
+    image_ids = models.JSONField(default=list, blank=True, null=True)  # List of image IDs
+
     def __str__(self):
         return self.name
+
+    @property
+    def tour_operator(self):
+        return self.tour_operator_id
+
     class Meta:
         db_table = 'Destination'
- 
+
+    def get_images(self):
+        """Get all images associated with this destination."""
+        from .models import ImageMetadata
+        if not self.image_ids:
+            return ImageMetadata.objects.none()
+        return ImageMetadata.objects.filter(id__in=self.image_ids).order_by('order')
+
+    def add_image_id(self, image_id):
+        """Add an image ID to this destination."""
+        if self.image_ids is None:
+            self.image_ids = []
+        if image_id not in self.image_ids:
+            self.image_ids.append(image_id)
+            self.save(update_fields=['image_ids'])
+
+    def remove_image_id(self, image_id):
+        """Remove an image ID from this destination."""
+        if self.image_ids and image_id in self.image_ids:
+            self.image_ids.remove(image_id)
+            self.save(update_fields=['image_ids'])
+
 class StateCity(models.Model):
     id = models.BigAutoField(primary_key=True)
     state = models.CharField(max_length=255)
@@ -226,7 +276,7 @@ class StateCityToDestinationMapping(models.Model):
     id = models.BigAutoField(primary_key=True)
     state_city = models.ForeignKey( StateCity, on_delete=models.CASCADE)
     destination =models.ForeignKey( Destination, on_delete=models.CASCADE)
-    
+
 class Event(models.Model):
     id = models.BigAutoField(primary_key=True)
     location = models.ForeignKey( Location, blank=True, null=True, on_delete=models.CASCADE)#EXACT LOCATION WHERE EVENT OCCURS
@@ -237,9 +287,31 @@ class Event(models.Model):
     contact_no = models.CharField(max_length=15, blank=True, null=True)
     charges = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
     created_at = models.DateTimeField(auto_now=True)
+    image_ids = models.JSONField(default=list, blank=True, null=True)  # List of image IDs
 
     class Meta:
         db_table = 'Event'
+
+    def get_images(self):
+        """Get all images associated with this event."""
+        from .models import ImageMetadata
+        if not self.image_ids:
+            return ImageMetadata.objects.none()
+        return ImageMetadata.objects.filter(id__in=self.image_ids).order_by('order')
+
+    def add_image_id(self, image_id):
+        """Add an image ID to this event."""
+        if self.image_ids is None:
+            self.image_ids = []
+        if image_id not in self.image_ids:
+            self.image_ids.append(image_id)
+            self.save(update_fields=['image_ids'])
+
+    def remove_image_id(self, image_id):
+        """Remove an image ID from this event."""
+        if self.image_ids and image_id in self.image_ids:
+            self.image_ids.remove(image_id)
+            self.save(update_fields=['image_ids'])
 
 class SightSeeing(models.Model):
     id = models.BigAutoField(primary_key=True)
@@ -251,9 +323,31 @@ class SightSeeing(models.Model):
     contact_no = models.CharField(max_length=15, blank=True, null=True)
     charges = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
     created_at = models.DateTimeField(auto_now=True)
+    image_ids = models.JSONField(default=list, blank=True, null=True)  # List of image IDs
 
     class Meta:
         db_table = 'SightSeeing'
+
+    def get_images(self):
+        """Get all images associated with this sightseeing."""
+        from .models import ImageMetadata
+        if not self.image_ids:
+            return ImageMetadata.objects.none()
+        return ImageMetadata.objects.filter(id__in=self.image_ids).order_by('order')
+
+    def add_image_id(self, image_id):
+        """Add an image ID to this sightseeing."""
+        if self.image_ids is None:
+            self.image_ids = []
+        if image_id not in self.image_ids:
+            self.image_ids.append(image_id)
+            self.save(update_fields=['image_ids'])
+
+    def remove_image_id(self, image_id):
+        """Remove an image ID from this sightseeing."""
+        if self.image_ids and image_id in self.image_ids:
+            self.image_ids.remove(image_id)
+            self.save(update_fields=['image_ids'])
 
 class Hotel(models.Model):
     id = models.BigAutoField(primary_key=True)
@@ -267,8 +361,31 @@ class Hotel(models.Model):
     website = models.CharField(max_length=45, blank=True, null=True)
     phoneno = models.CharField(max_length=15, blank=True, null=True)
     is_active = models.BooleanField(default=True)
+    image_ids = models.JSONField(blank=True, null=True)  # List of image IDs
+
     class Meta:
         db_table = 'Hotel'
+
+    def get_images(self):
+        """Get all images associated with this hotel."""
+        from .models import ImageMetadata
+        if not self.image_ids:
+            return ImageMetadata.objects.none()
+        return ImageMetadata.objects.filter(id__in=self.image_ids).order_by('order')
+
+    def add_image_id(self, image_id):
+        """Add an image ID to this hotel."""
+        if self.image_ids is None:
+            self.image_ids = []
+        if image_id not in self.image_ids:
+            self.image_ids.append(image_id)
+            self.save(update_fields=['image_ids'])
+
+    def remove_image_id(self, image_id):
+        """Remove an image ID from this hotel."""
+        if self.image_ids and image_id in self.image_ids:
+            self.image_ids.remove(image_id)
+            self.save(update_fields=['image_ids'])
 
 class Room(models.Model):
     id = models.BigAutoField(primary_key=True)
@@ -284,9 +401,31 @@ class Room(models.Model):
     description = models.TextField(blank=True, null=True)
     rating = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
     price_per_night = models.CharField(max_length=45, blank=True, null=True)
+    image_ids = models.JSONField(blank=True, null=True)  # List of image IDs
 
     class Meta:
         db_table = 'Room'
+
+    def get_images(self):
+        """Get all images associated with this room."""
+        from .models import ImageMetadata
+        if not self.image_ids:
+            return ImageMetadata.objects.none()
+        return ImageMetadata.objects.filter(id__in=self.image_ids).order_by('order')
+
+    def add_image_id(self, image_id):
+        """Add an image ID to this room."""
+        if self.image_ids is None:
+            self.image_ids = []
+        if image_id not in self.image_ids:
+            self.image_ids.append(image_id)
+            self.save(update_fields=['image_ids'])
+
+    def remove_image_id(self, image_id):
+        """Remove an image ID from this room."""
+        if self.image_ids and image_id in self.image_ids:
+            self.image_ids.remove(image_id)
+            self.save(update_fields=['image_ids'])
 
 class Package(models.Model):
     id = models.BigAutoField(primary_key=True)
@@ -304,9 +443,31 @@ class Package(models.Model):
     package_amount = models.DecimalField(max_digits=15, decimal_places=2, blank=True, null=True)
     notes= models.TextField(blank=True, null=True)
     is_active = models.BooleanField(default=True)
+    image_ids = models.JSONField(blank=True, null=True)  # List of image IDs
 
     class Meta:
         db_table = 'Package'
+
+    def get_images(self):
+        """Get all images associated with this package."""
+        from .models import ImageMetadata
+        if not self.image_ids:
+            return ImageMetadata.objects.none()
+        return ImageMetadata.objects.filter(id__in=self.image_ids).order_by('order')
+
+    def add_image_id(self, image_id):
+        """Add an image ID to this package."""
+        if self.image_ids is None:
+            self.image_ids = []
+        if image_id not in self.image_ids:
+            self.image_ids.append(image_id)
+            self.save(update_fields=['image_ids'])
+
+    def remove_image_id(self, image_id):
+        """Remove an image ID from this package."""
+        if self.image_ids and image_id in self.image_ids:
+            self.image_ids.remove(image_id)
+            self.save(update_fields=['image_ids'])
 
 class DestinationPackageMapping(models.Model):
     id = models.BigAutoField(primary_key=True)
@@ -456,7 +617,7 @@ class LeadItineraryItem(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     class Meta:
         db_table = 'LeadItineraryItem'
-    
+
 
 class LeadHotelMapping(models.Model):
     id = models.BigAutoField(primary_key=True)
@@ -502,7 +663,7 @@ class Transaction(models.Model):
     transport_type = models.CharField(max_length=45, blank=True, null=True)
     no_of_days = models.IntegerField(blank=True, null=True)
     package_amount = models.DecimalField(max_digits=15, decimal_places=2)
-    
+
     # Financial details
     proposed_package_amount = models.DecimalField(max_digits=15, decimal_places=2)
     original_package_amount = models.DecimalField(max_digits=15, decimal_places=2)
@@ -510,7 +671,7 @@ class Transaction(models.Model):
     margin_of_profit = models.DecimalField(max_digits=15, decimal_places=2, default=0.0)
     taxes = models.DecimalField(max_digits=15, decimal_places=2, default=0.0)
     final_amount = models.DecimalField(max_digits=15, decimal_places=2)
-    
+
     # Snapshot of package-level amenities, inclusions, exclusions, and policies
     package_amenities = models.JSONField(blank=True, null=True)
     package_inclusions = models.JSONField(blank=True, null=True)
@@ -553,7 +714,7 @@ class TransactionDayDetails(models.Model):
     room_inclusions = models.JSONField(blank=True, null=True)
     room_exclusions = models.JSONField(blank=True, null=True)
     room_policies = models.JSONField(blank=True, null=True)
-    
+
     # Snapshot of car dealer details
     car_dealer = models.ForeignKey(Cardealer, blank=True, null=True, on_delete=models.PROTECT)  # Reference to original car dealer
     car_dealer_name = models.CharField(max_length=255, blank=True, null=True)
@@ -579,7 +740,7 @@ class TransactionDayDetails(models.Model):
 class TransactionItineraryDetails(models.Model):
     id = models.BigAutoField(primary_key=True)
     transaction_day = models.ForeignKey(TransactionDayDetails, related_name="itinerary_details", on_delete=models.PROTECT)
-    
+
     # Snapshot of itinerary activity details (either event or sightseeing)
     activity_type = models.CharField(max_length=50, choices=[('event', 'Event'), ('sightseeing', 'Sightseeing')])
     activity_name = models.CharField(max_length=255)
@@ -611,18 +772,67 @@ class ImageMetadata(models.Model):
         ('event', 'Event'),
         ('sightseeing', 'Sightseeing'),
     ]
-    
+
     tour_operator = models.ForeignKey(Touroperator, on_delete=models.CASCADE)
     module = models.CharField(max_length=50, choices=MODULE_CHOICES)
     record_id = models.BigIntegerField()  # Foreign key to the actual record
+
     image_path = models.ImageField(upload_to="images/%Y/%m/%d")
     upload_date = models.DateTimeField(auto_now_add=True)
     description = models.TextField(blank=True, null=True)
     order = models.PositiveIntegerField(default=0)  # For displaying images in a specific order
 
+    # Descriptive fields for better identification
+    entity_name = models.CharField(max_length=255, blank=True, null=True)  # Name of the hotel, room, etc.
+    entity_type = models.CharField(max_length=100, blank=True, null=True)  # Type of room, package, etc.
+    parent_entity_name = models.CharField(max_length=255, blank=True, null=True)  # Hotel name for a room, etc.
+    parent_entity_id = models.BigIntegerField(blank=True, null=True)  # Hotel ID for a room, etc.
+
     class Meta:
         db_table = 'ImageMetadata'
-        #unique_together = ('tour_operator', 'module', 'record_id', 'order')
+
+    def get_entity(self):
+        """Get the entity this image belongs to."""
+        if self.module == 'hotel':
+            from .models import Hotel
+            return Hotel.objects.filter(id=self.record_id).first()
+        elif self.module == 'room':
+            from .models import Room
+            return Room.objects.filter(id=self.record_id).first()
+        elif self.module == 'package':
+            from .models import Package
+            return Package.objects.filter(id=self.record_id).first()
+        elif self.module == 'destination':
+            from .models import Destination
+            return Destination.objects.filter(id=self.record_id).first()
+        elif self.module == 'car_dealer':
+            from .models import Cardealer
+            return Cardealer.objects.filter(id=self.record_id).first()
+        elif self.module == 'event':
+            from .models import Event
+            return Event.objects.filter(id=self.record_id).first()
+        elif self.module == 'sightseeing':
+            from .models import SightSeeing
+            return SightSeeing.objects.filter(id=self.record_id).first()
+        return None
+
+    def save(self, *args, **kwargs):
+        # Try to set entity_name and entity_type based on the entity
+        entity = self.get_entity()
+        if entity:
+            if hasattr(entity, 'name'):
+                self.entity_name = entity.name
+
+            # Set entity_type for rooms
+            if self.module == 'room' and hasattr(entity, 'type'):
+                self.entity_type = entity.type
+
+            # Set parent_entity_name and parent_entity_id for rooms
+            if self.module == 'room' and hasattr(entity, 'hotel') and entity.hotel:
+                self.parent_entity_name = entity.hotel.name
+                self.parent_entity_id = entity.hotel.id
+
+        super().save(*args, **kwargs)
 
 class TourOperatorQuota(models.Model):
     tour_operator = models.OneToOneField(Touroperator, on_delete=models.CASCADE)
