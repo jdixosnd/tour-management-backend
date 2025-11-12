@@ -30,6 +30,7 @@ urlpatterns = [
 
         path('destination/add/', destination.add_destination, name='add_destination'),
         path('destination/get/', destination.get_destinations, name='get_destinations'),
+        path('destination/update/', destination.update_destination, name='update_destination'),
 
         path('event/add/', event.add_event, name='add_event'),
         path('event/get/', event.get_events, name='get_events'),

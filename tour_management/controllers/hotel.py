@@ -32,7 +32,7 @@ def add_hotel(request):
 
                 # Handle location (reuse if exists or create a new one)
                 location_data = data['location']
-                location, _ = Location.objects.get_or_create(
+                location, created = Location.objects.get_or_create(
                     tour_operator=touroperator,
                     name=location_data['name'],
                     city=location_data['city'],
@@ -42,10 +42,28 @@ def add_hotel(request):
                         'created_by': user,
                         'pin_code': location_data.get('country_code'),
                         'address': location_data.get('address'),
-                        'lat': float(location_data.get('lat')),
-                        'lng': float(location_data.get('lng'))
+                        'lat': location_data.get('lat'),
+                        'lng': location_data.get('lng')
                     }
                 )
+
+                # Update location if it already exists but is missing lat/lng and new data has them
+                if not created:
+                    updated = False
+                    if location_data.get('lat') is not None and location.lat is None:
+                        location.lat = location_data.get('lat')
+                        updated = True
+                    if location_data.get('lng') is not None and location.lng is None:
+                        location.lng = location_data.get('lng')
+                        updated = True
+                    if location_data.get('address') and not location.address:
+                        location.address = location_data.get('address')
+                        updated = True
+                    if location_data.get('country_code') and not location.pin_code:
+                        location.pin_code = location_data.get('country_code')
+                        updated = True
+                    if updated:
+                        location.save()
 
                 # Create the Hotel entry
                 hotel = Hotel.objects.create(
@@ -188,23 +206,32 @@ def update_hotel(request):
 
                 # Update or reuse existing location
                 location_data = data['location']
-                location, _ = Location.objects.get_or_create(
+                location, created = Location.objects.get_or_create(
                     tour_operator_id=data['tour_operator_id'],
                     name=location_data['name'],
                     city=location_data['city'],
                     state=location_data['state'],
                     country=location_data['country'],
                     defaults={
-                        'created_by': user
+                        'created_by': user,
+                        'pin_code': location_data.get('country_code'),
+                        'address': location_data.get('address'),
+                        'lat': location_data.get('lat'),
+                        'lng': location_data.get('lng')
                     }
                 )
-                # If location already exists, update it if necessary
-                #if not location:
-                location.pin_code = location_data.get('country_code', location.pin_code)
-                location.address = location_data.get('address', location.address)
-                location.lat = float(location_data.get('lat', location.lat))
-                location.lng = float(location_data.get('lng', location.lng))
-                location.save()
+
+                # If location already exists, update it with new data if provided
+                if not created:
+                    if location_data.get('country_code'):
+                        location.pin_code = location_data.get('country_code')
+                    if location_data.get('address'):
+                        location.address = location_data.get('address')
+                    if location_data.get('lat') is not None:
+                        location.lat = location_data.get('lat')
+                    if location_data.get('lng') is not None:
+                        location.lng = location_data.get('lng')
+                    location.save()
 
                 # Update Hotel details
                 hotel.location = location
@@ -680,6 +707,9 @@ def get_images(module, record_id, include_binary=False):
         entity = Event.objects.filter(id=record_id).first()
     elif module == 'sightseeing':
         entity = SightSeeing.objects.filter(id=record_id).first()
+    elif module == 'itinerary_item':
+        from ..models import Itineraryitem
+        entity = Itineraryitem.objects.filter(id=record_id).first()
 
     # If entity is found and has image_ids, use them to fetch images
     if entity and entity.image_ids:

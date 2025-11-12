@@ -59,7 +59,7 @@ USER_ROLES = (
 class Touroperator(models.Model):
     id = models.BigAutoField(primary_key=True)
     name = models.CharField(max_length=255)
-    email = models.CharField(unique=True, max_length=255)
+    email = models.CharField(unique=True, max_length=300)
     phone_number = models.CharField(max_length=20, blank=True, null=True)
     address = models.TextField(blank=True, null=True)
     max_users = models.DecimalField(max_digits=10, decimal_places=0, blank=True, null=True)
@@ -276,6 +276,7 @@ class StateCityToDestinationMapping(models.Model):
     id = models.BigAutoField(primary_key=True)
     state_city = models.ForeignKey( StateCity, on_delete=models.CASCADE)
     destination =models.ForeignKey( Destination, on_delete=models.CASCADE)
+    location = models.ForeignKey( Location, blank=True, null=True, on_delete=models.CASCADE)  # Link to actual Location object
 
 class Event(models.Model):
     id = models.BigAutoField(primary_key=True)
@@ -444,6 +445,7 @@ class Package(models.Model):
     notes= models.TextField(blank=True, null=True)
     is_active = models.BooleanField(default=True)
     image_ids = models.JSONField(blank=True, null=True)  # List of image IDs
+    terms_and_conditions = models.TextField(blank=True, null=True)
 
     class Meta:
         db_table = 'Package'
@@ -479,6 +481,7 @@ class DestinationPackageMapping(models.Model):
     state = models.CharField(max_length=255, blank=True, null=True)
     title = models.CharField(max_length=512, blank=True, null=True)
     description= models.TextField(blank=True, null=True)
+    note = models.TextField(blank=True, null=True)
     class Meta:
         db_table = 'DestinationPackageMapping'
 
@@ -493,9 +496,31 @@ class Itineraryitem(models.Model):
     description = models.TextField(blank=True, null=True)
     created_by = models.ForeignKey(User, blank=True, null=True, on_delete=models.CASCADE)
     created_at = models.DateTimeField(auto_now=True)
+    image_ids = models.JSONField(default=list, blank=True, null=True)  # List of image IDs
 
     class Meta:
         db_table = 'ItineraryItem'
+
+    def get_images(self):
+        """Get all images associated with this itinerary item."""
+        from .models import ImageMetadata
+        if not self.image_ids:
+            return ImageMetadata.objects.none()
+        return ImageMetadata.objects.filter(id__in=self.image_ids).order_by('order')
+
+    def add_image_id(self, image_id):
+        """Add an image ID to this itinerary item."""
+        if self.image_ids is None:
+            self.image_ids = []
+        if image_id not in self.image_ids:
+            self.image_ids.append(image_id)
+            self.save(update_fields=['image_ids'])
+
+    def remove_image_id(self, image_id):
+        """Remove an image ID from this itinerary item."""
+        if self.image_ids and image_id in self.image_ids:
+            self.image_ids.remove(image_id)
+            self.save(update_fields=['image_ids'])
 
 class Packageitineraryitem(models.Model):
     id = models.BigAutoField(primary_key=True)
@@ -585,6 +610,7 @@ class LeadPackage(models.Model):
     no_of_days = models.IntegerField(blank=True, null=True)
     package_amount = models.DecimalField(max_digits=15, decimal_places=2, blank=True, null=True)
     notes = models.TextField(blank=True, null=True)
+    terms_and_conditions = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     class Meta:
         db_table = 'LeadPackage'
@@ -601,6 +627,7 @@ class LeadDestinationMapping(models.Model):
     state = models.CharField(max_length=255, blank=True, null=True)
     title = models.CharField(max_length=512, blank=True, null=True)
     description= models.TextField(blank=True, null=True)
+    note = models.TextField(blank=True, null=True)
 
     class Meta:
         db_table = 'LeadDestinationMapping'
@@ -771,6 +798,7 @@ class ImageMetadata(models.Model):
         ('car_dealer', 'Car Dealer'),
         ('event', 'Event'),
         ('sightseeing', 'Sightseeing'),
+        ('itinerary_item', 'Itinerary Item'),
     ]
 
     tour_operator = models.ForeignKey(Touroperator, on_delete=models.CASCADE)
@@ -814,6 +842,9 @@ class ImageMetadata(models.Model):
         elif self.module == 'sightseeing':
             from .models import SightSeeing
             return SightSeeing.objects.filter(id=self.record_id).first()
+        elif self.module == 'itinerary_item':
+            from .models import Itineraryitem
+            return Itineraryitem.objects.filter(id=self.record_id).first()
         return None
 
     def save(self, *args, **kwargs):
@@ -843,3 +874,4 @@ class TourOperatorQuota(models.Model):
     max_images_car_dealer = models.PositiveIntegerField(default=3)
     max_images_event = models.PositiveIntegerField(default=3)
     max_images_sightseeing = models.PositiveIntegerField(default=3)
+    max_images_itinerary_item = models.PositiveIntegerField(default=5)

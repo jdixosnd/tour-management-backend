@@ -153,6 +153,15 @@ def upload_images(request):
                         sightseeing.save(update_fields=['image_ids'])
                     except SightSeeing.DoesNotExist:
                         pass
+                elif module == 'itinerary_item':
+                    try:
+                        itinerary_item = Itineraryitem.objects.get(id=record_id)
+                        if itinerary_item.image_ids is None:
+                            itinerary_item.image_ids = []
+                        itinerary_item.image_ids.append(image_metadata.id)
+                        itinerary_item.save(update_fields=['image_ids'])
+                    except Itineraryitem.DoesNotExist:
+                        pass
 
                 response_data.append({
                     "message": "Image uploaded successfully",
@@ -329,6 +338,14 @@ def delete_image(request):
                         sightseeing.image_ids.remove(image_id)
                         sightseeing.save(update_fields=['image_ids'])
                 except SightSeeing.DoesNotExist:
+                    pass
+            elif module == 'itinerary_item':
+                try:
+                    itinerary_item = Itineraryitem.objects.get(id=record_id)
+                    if itinerary_item.image_ids and image_id in itinerary_item.image_ids:
+                        itinerary_item.image_ids.remove(image_id)
+                        itinerary_item.save(update_fields=['image_ids'])
+                except Itineraryitem.DoesNotExist:
                     pass
 
             # Capture the image path before deletion

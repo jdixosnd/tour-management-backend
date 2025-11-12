@@ -79,7 +79,8 @@ TEMPLATES = [
         },
     },
 ]
-
+STATIC_URL = '/static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'static')
 WSGI_APPLICATION = 'tour_management_project.wsgi.application'
 
 
@@ -99,10 +100,12 @@ DATABASES = {
         'NAME': 'tour_management_db',
         'USER': 'root',
         'PASSWORD': 'root',
-        'HOST':'localhost',
+        # Use host.docker.internal to connect to host machine's MySQL from Docker
+        #'HOST': os.environ.get('DB_HOST', 'host.docker.internal'),
+        'HOST': os.environ.get('DB_HOST', '0.0.0.0'),
         #'invoiceflow-dev.cvqzpm1grph6.us-east-2.rds.amazonaws.com'
         #'invoiceflow-dev.cdj1hls4yp1w.us-east-2.rds.amazonaws.com',
-         
+
         'PORT': '3306',
     }
 }

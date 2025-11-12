@@ -6,11 +6,14 @@ services:
     build: .
     volumes:
       - tour_management_project:/tour_management_project_volume
-    networks:  
+      - media_files:/tour_management_project/media  # Shared media volume for images
+    networks:
       - nginx_network
     environment:
       - SECRET_KEY=${tour_management_project_SECRET_KEY}
       - DOCKER=1
+    extra_hosts:
+      - "host.docker.internal:host-gateway"  # Allow container to access host's MySQL
 
   nginx:
     image: nginx:1.13
@@ -19,14 +22,16 @@ services:
     volumes:
       - ./config/nginx/conf.d:/etc/nginx/conf.d
       - ./static:/static
+      - media_files:/tour_management_project/media  # Mount same media volume to serve images
     depends_on:
       - tour_management
-    networks:  
+    networks:
       - nginx_network
-    
+
 volumes:
   tour_management_project:
+  media_files:  # Shared volume for media files (images)
 
-networks:  
+networks:
   nginx_network:
     driver: bridge

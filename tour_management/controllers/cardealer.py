@@ -1,7 +1,7 @@
 from __future__ import unicode_literals
 from django.http import HttpResponse, HttpResponseBadRequest
 import json
-from ..models import Location, Touroperator, User, Cardealer, CarType
+from ..models import Location, Touroperator, User, Cardealer, CarType, Destination, StateCityToDestinationMapping, StateCity
 from django.core.exceptions import ValidationError
 from django.contrib.auth.hashers import make_password
 from django.core import serializers
@@ -270,24 +270,74 @@ def get_cardealer(request):
     result = []
     required_keys = ["tour_operator_id" ]
 
-        
+
     if request.method == 'POST':
         data = json.loads(request.body.decode("utf-8"))
         missing_keys = set(required_keys) - data.keys()
         # Check for missing keys
         if missing_keys:
             return HttpResponseBadRequest(json.dumps({"error": ",".join(required_keys) + " is/are required fields."}), content_type='application/json')
-        
+
 
         cardealer_id = data.get('cardealer_id')
         tour_operator_id = data.get('tour_operator_id')
+        destination_id = data.get('destination_id')
 
         # Fetch with select_related for optimization
         if cardealer_id:
             cardealers = Cardealer.objects.filter(id=cardealer_id).select_related('tour_operator', 'created_by', 'location')
         elif tour_operator_id:
             cardealers = Cardealer.objects.filter(tour_operator=tour_operator_id).select_related('tour_operator', 'created_by', 'location')
-       
+
+        # Filter by destination if destination_id is provided
+        if destination_id:
+            try:
+                # Get the destination
+                destination = Destination.objects.get(id=destination_id)
+
+                # Get all location mappings for this destination
+                destination_mappings = StateCityToDestinationMapping.objects.filter(
+                    destination=destination
+                ).select_related('state_city', 'location')
+
+                # Collect location IDs and city/state combinations
+                location_ids = []
+                city_state_filters = []
+
+                for mapping in destination_mappings:
+                    # If mapping has a direct location reference, use it
+                    if mapping.location:
+                        location_ids.append(mapping.location.id)
+                    else:
+                        # Fallback to city/state matching for old data
+                        city_state_filters.append({
+                            'city__iexact': mapping.state_city.city,
+                            'state__iexact': mapping.state_city.state
+                        })
+
+                # Build query to filter cardealers
+                if location_ids or city_state_filters:
+                    from django.db.models import Q
+                    location_query = Q()
+
+                    # Add direct location ID matches
+                    if location_ids:
+                        location_query |= Q(location_id__in=location_ids)
+
+                    # Add city/state matches for backward compatibility
+                    if city_state_filters:
+                        for loc_filter in city_state_filters:
+                            location_query |= Q(location__city__iexact=loc_filter['city__iexact'],
+                                              location__state__iexact=loc_filter['state__iexact'])
+
+                    # Filter cardealers by matching locations
+                    cardealers = cardealers.filter(location_query)
+                else:
+                    # No locations found for this destination, return empty result
+                    cardealers = Cardealer.objects.none()
+
+            except Destination.DoesNotExist:
+                return JsonResponse({"error": "Invalid destination ID"}, status=400)
 
         for dealer in cardealers:
             dealer_data = {

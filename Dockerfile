@@ -10,6 +10,7 @@ VOLUME /tour_management_project_volume
 WORKDIR /tour_management_project
 
 RUN pip install -r requirements.txt
+RUN python manage.py collectstatic --noinput
 
 # Expose ports
 EXPOSE 9300

@@ -2,9 +2,10 @@
 django==3.2.0
 gunicorn==20.0.4
 djangorestframework==3.11.0
-djangorestframework-simplejwt==4.4.0
+djangorestframework-simplejwt
 PyJWT==v1.7.1
-mysqlclient
-pymysql==1.1.1
+#mysqlclient
+pymysql
+cryptography
 django-cors-headers
 Pillow

@@ -1,14 +1,14 @@
 from __future__ import unicode_literals
 from django.http import HttpResponse, HttpResponseBadRequest
 import json
-from ..models import User, Touroperator,Destination, Location, PackageCarDealerMapping,Itineraryitem, PackageHotelMapping, Package, Event, SightSeeing, Packageitineraryitem, DestinationPackageMapping, Hotel, Cardealer, Inclusion, Exclusion
+from ..models import User, Touroperator,Destination, Location, PackageCarDealerMapping,Itineraryitem, PackageHotelMapping, Package, Event, SightSeeing, Packageitineraryitem, DestinationPackageMapping, Hotel, Cardealer, Inclusion, Exclusion, ImageMetadata
 from django.core.exceptions import ValidationError
 from django.contrib.auth.hashers import make_password, check_password
 from django.core import serializers
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.request import Request
 from collections import defaultdict
-from .hotel import get_hotels_from_db, get_hotel_by_id
+from .hotel import get_hotels_from_db, get_hotel_by_id, get_images
 from .cardealer import get_transportdetails_from_db
 from django.http import JsonResponse
 from rest_framework.pagination import PageNumberPagination
@@ -37,6 +37,9 @@ def get_packages_from_destination(request):
         paginator.page_size = 10
         paginated_packages = paginator.paginate_queryset(packages, Request(request))
         for package in paginated_packages:
+            # Get package images
+            package_images = get_images('package', package.id, include_binary=False)
+
             result.append({
                 "id": package.id,
                 "name": package.name,
@@ -48,7 +51,9 @@ def get_packages_from_destination(request):
                 "no_of_days": package.no_of_days,
                 "package_amount": float(package.package_amount or 0),
                 "is_active": package.is_active,
-                "type": package.type
+                "type": package.type,
+                "terms_and_conditions": package.terms_and_conditions,
+                "images": package_images
             })
         return JsonResponse({"data":result,"pagination": {
                 "count": paginator.page.paginator.count,
@@ -117,6 +122,7 @@ def get_package(request):
                     "city": destination.city,
                     "cardealer": [
                         {
+                            "id": dealer_mapping.car_dealer.id,
                             "dealer_name": dealer_mapping.car_dealer.name,
                             "contact_no": dealer_mapping.car_dealer.contact_no,
                             "transport_types": get_transportdetails_from_db(dealer_mapping.car_dealer.id)
@@ -154,6 +160,12 @@ def get_package(request):
                         }
                     else:
                         location = {}
+
+                    # Get images for the activity
+                    activity_images = []
+                    if hasattr(itinerary, 'image_ids') and itinerary.image_ids:
+                        activity_images = get_images(pii.itinerary_item.item_type.lower(), itinerary.id, include_binary=False)
+
                     itinerary_details[pii.day].append({
                         "name": itinerary.name,
                         "type": pii.itinerary_item.item_type,
@@ -161,7 +173,10 @@ def get_package(request):
                         "charges": float(itinerary.charges or 0),
                         "contact_no": itinerary.contact_no,
                         "sequence": pii.sequence,
-                        "location": location
+                        "location": location,
+                        "image_ids": itinerary.image_ids if hasattr(itinerary, 'image_ids') else [],
+                        "images": activity_images,
+                        "itinerary_item_id": pii.itinerary_item.id
                     })
                 else:
                     itinerary_details[pii.day] = []
@@ -186,6 +201,7 @@ def get_package(request):
                     "state":destination.state,
                     "title":destination.title,
                     "description":destination.description,
+                    "note":destination.note,
                     "activities": activities,
                     "hotel_details": hotels,
                     "car_dealers": cardealers
@@ -201,6 +217,9 @@ def get_package(request):
                 for exc in Exclusion.objects.filter(type="package", type_id=package.id)
             ]
 
+            # Get package images
+            package_images = get_images('package', package.id, include_binary=False)
+
             # Structure final package data
             package_data = {
                 "id": package.id,
@@ -214,10 +233,12 @@ def get_package(request):
                 "package_amount": float(package.package_amount or 0),
                 "is_active": package.is_active,
                 "type": package.type,
+                "terms_and_conditions": package.terms_and_conditions,
                 #"destination": destination_details,
                 "itinerary_details": day_wise_details,
                 "inclusions": package_inclusions,
-                "exclusions": package_exclusions
+                "exclusions": package_exclusions,
+                "images": package_images
             }
             result.append(package_data)
 
@@ -298,7 +319,8 @@ def add_package(request):
                     no_of_days=data.get('no_of_days', 0),
                     package_amount=data.get('package_amount', 0.0),
                     notes=data.get('notes', ''),
-                    is_active=data.get('is_active', True)
+                    is_active=data.get('is_active', True),
+                    terms_and_conditions=data.get('terms_and_conditions', '')
                 )
 
                 # Add Destination mappings
@@ -320,10 +342,11 @@ def add_package(request):
                         destination_id=destination,
                         tour_operator_id=tour_operator,
                         day=itinerary['day'],
-                        city=itinerary['city'],
-                        state=itinerary['state'],
-                        title = itinerary['title'],
-                        description = itinerary['description']
+                        city=itinerary.get('city', ''),
+                        state=itinerary.get('state', ''),
+                        title = itinerary.get('title', ''),
+                        description = itinerary.get('description', ''),
+                        note = itinerary.get('note', '')
                     )
                     # Process activities within each day
                     for activity in itinerary['activities']:
@@ -348,7 +371,7 @@ def add_package(request):
 
                         # Create itinerary item and link to package
 
-                        city, state=itinerary['city'],itinerary['state'] #get_city_state_from_day(data['destination_mapping'],day)
+                        city, state=itinerary.get('city', ''),itinerary.get('state', '') #get_city_state_from_day(data['destination_mapping'],day)
                        
                         itinerary_item = Itineraryitem.objects.filter(item_id=item_id, item_type=item_type,city=city,state=state,tour_operator_id=tour_operator,destination=destination).first()
                         if not itinerary_item:
@@ -470,6 +493,7 @@ def update_package(request):
                 package.notes = data.get('notes', '')
                 package.is_active = data.get('is_active', True)
                 package.destination = destination
+                package.terms_and_conditions = data.get('terms_and_conditions', '')
                 package.save()
 
                 # Update Destination Mappings
@@ -492,10 +516,11 @@ def update_package(request):
                         destination_id=destination,
                         tour_operator_id=tour_operator,
                         day=day,
-                        city=itinerary['city'],
-                        state=itinerary['state'],
-                        title = itinerary['title'],
-                        description = itinerary['description']
+                        city=itinerary.get('city', ''),
+                        state=itinerary.get('state', ''),
+                        title = itinerary.get('title', ''),
+                        description = itinerary.get('description', ''),
+                        note = itinerary.get('note', '')
                     )
                     updated_items = []
 

@@ -157,11 +157,12 @@ def get_lead(request):
 
                 # Append day-wise itinerary details
                 day_wise_details.append({
-                    "day": day, 
+                    "day": day,
                     "city":destination.city,
                     "state":destination.state,
                     "title":destination.title,
                     "description":destination.description,
+                    "note":destination.note,
                     "activities": activities,
                     "hotel_details": hotels,
                     "car_dealers": cardealers
@@ -187,6 +188,7 @@ def get_lead(request):
                 "no_of_days": lead_package.no_of_days,
                 "package_amount": float(lead_package.package_amount or 0),
                 "type": lead_package.type,
+                "terms_and_conditions": lead_package.terms_and_conditions,
                 #"destination": destination_details,
                 "itinerary_details": day_wise_details,
                 "inclusions": package_inclusions,
@@ -241,6 +243,7 @@ def add_lead(request):
                     no_of_days=data.get('no_of_days', 0),
                     package_amount=data.get('package_amount', 0.0),
                     notes=data.get('notes', ''),
+                    terms_and_conditions=data.get('terms_and_conditions', '')
                 )
 
                 # Process destination mappings
@@ -265,7 +268,8 @@ def add_lead(request):
                         city=itinerary['city'],
                         state=itinerary['state'],
                         title = itinerary['title'],
-                        description = itinerary['description']
+                        description = itinerary['description'],
+                        note = itinerary.get('note', '')
 
                     )
                     # Handle each activity within the day
