@@ -161,10 +161,8 @@ def get_package(request):
                     else:
                         location = {}
 
-                    # Get images for the activity
-                    activity_images = []
-                    if hasattr(itinerary, 'image_ids') and itinerary.image_ids:
-                        activity_images = get_images(pii.itinerary_item.item_type.lower(), itinerary.id, include_binary=False)
+                    # Fetch itinerary item images (same pattern as hotels)
+                    itinerary_item_images = get_images('itinerary_item', pii.itinerary_item.id, include_binary=False)
 
                     itinerary_details[pii.day].append({
                         "name": itinerary.name,
@@ -174,8 +172,7 @@ def get_package(request):
                         "contact_no": itinerary.contact_no,
                         "sequence": pii.sequence,
                         "location": location,
-                        "image_ids": itinerary.image_ids if hasattr(itinerary, 'image_ids') else [],
-                        "images": activity_images,
+                        "images": itinerary_item_images,
                         "itinerary_item_id": pii.itinerary_item.id
                     })
                 else:

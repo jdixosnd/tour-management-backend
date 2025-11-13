@@ -11,7 +11,7 @@ from tour_management.views import probe
 from tour_management.controllers import (user, location, destination, hotel,
                                           cardealer, package, event, amenity,
                                             inclusion, exclusion, policy, transaction, touroperator,
-                                            lead)
+                                            lead, customer, booking, company_profile)
 from tour_management import images
 urlpatterns = [
     url(r'^tour_management/$',
@@ -67,6 +67,25 @@ urlpatterns = [
 
         path('lead/add/',lead.add_lead,name='add_lead'),
         path('lead/get/',lead.get_lead,name='get_lead'),
+        path('lead/get_all/',lead.get_all_leads,name='get_all_leads'),
+        path('lead/update/',lead.update_lead,name='update_lead'),
+
+        # New Booking APIs (working with Lead-based system)
+        path('booking/add/', booking.add_booking, name='add_booking'),
+        path('booking/get/', booking.get_booking, name='get_booking'),
+        path('booking/get_all/', booking.get_all_bookings, name='get_all_bookings'),
+        path('booking/update/', booking.update_booking, name='update_booking'),
+
+        path('customer/add/', customer.add_customer, name='add_customer'),
+        path('customer/get/', customer.get_customers, name='get_customers'),
+        path('customer/update/', customer.update_customer, name='update_customer'),
+        path('customer/delete/', customer.delete_customer, name='delete_customer'),
+
+        # Company Profile APIs
+        path('company_profile/add/', company_profile.add_company_profile, name='add_company_profile'),
+        path('company_profile/get/', company_profile.get_company_profile, name='get_company_profile'),
+        path('company_profile/update/', company_profile.update_company_profile, name='update_company_profile'),
+
         path('image/upload/',images.upload_images,name='upload_images'),
         path('image/get/',images.get_images,name='get_images'),
         path('image/delete/',images.delete_image,name='delete_image'),

@@ -601,6 +601,7 @@ class LeadPackage(models.Model):
     tour_operator = models.ForeignKey(Touroperator, blank=True, null=True, on_delete=models.PROTECT)
     created_by = models.ForeignKey(User, blank=True, null=True,on_delete=models.PROTECT)
 
+    # Basic package details
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True, null=True)
     type = models.CharField(max_length=100, choices=PACKAGE_TYPES, blank=True, null=True)
@@ -611,6 +612,14 @@ class LeadPackage(models.Model):
     package_amount = models.DecimalField(max_digits=15, decimal_places=2, blank=True, null=True)
     notes = models.TextField(blank=True, null=True)
     terms_and_conditions = models.TextField(blank=True, null=True)
+
+    # Snapshot fields - stored as JSON for complete package data
+    package_images = models.JSONField(blank=True, null=True)  # List of image objects
+    package_inclusions = models.JSONField(blank=True, null=True)  # List of inclusion objects
+    package_exclusions = models.JSONField(blank=True, null=True)  # List of exclusion objects
+    package_amenities = models.JSONField(blank=True, null=True)  # List of amenity objects
+    package_policies = models.JSONField(blank=True, null=True)  # List of policy objects
+
     created_at = models.DateTimeField(auto_now_add=True)
     class Meta:
         db_table = 'LeadPackage'
@@ -674,119 +683,107 @@ class LeadCarDealerMapping(models.Model):
 
 
 class Transaction(models.Model):
-    id = models.BigAutoField(primary_key=True)
-    customer = models.ForeignKey(Customer, on_delete=models.PROTECT)
-    package = models.ForeignKey(Package, on_delete=models.PROTECT)  # Reference to original package
-    destination = models.ForeignKey(Destination, on_delete=models.PROTECT)  # Reference to original destination
-    created_by = models.ForeignKey(User,on_delete=models.PROTECT)
-    tour_operator = models.ForeignKey(Touroperator, blank=True, null=True, on_delete=models.PROTECT)
+    BOOKING_STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('confirmed', 'Confirmed'),
+        ('cancelled', 'Cancelled'),
+        ('completed', 'Completed'),
+    ]
 
-    # Snapshot of the offered package details
+    PAYMENT_STATUS_CHOICES = [
+        ('unpaid', 'Unpaid'),
+        ('partial', 'Partial'),
+        ('paid', 'Paid'),
+        ('refunded', 'Refunded'),
+    ]
+
+    id = models.BigAutoField(primary_key=True)
+
+    # Reference to lead (contains all package options offered to customer)
+    lead = models.ForeignKey('Lead', on_delete=models.PROTECT)
+
+    # References for quick access
+    customer = models.ForeignKey(Customer, on_delete=models.PROTECT)
+    tour_operator = models.ForeignKey(Touroperator, on_delete=models.PROTECT)
+    created_by = models.ForeignKey(User, on_delete=models.PROTECT)
+    destination = models.ForeignKey(Destination, blank=True, null=True, on_delete=models.PROTECT)
+
+    # Booking details
+    booking_status = models.CharField(max_length=20, choices=BOOKING_STATUS_CHOICES, default='pending')
+    payment_status = models.CharField(max_length=20, choices=PAYMENT_STATUS_CHOICES, default='unpaid')
+
+    # Travel dates
+    travel_start_date = models.DateField(blank=True, null=True)
+    travel_end_date = models.DateField(blank=True, null=True)
+
+    # Package snapshot (customer's finalized selections from lead options)
     package_name = models.CharField(max_length=255)
     package_description = models.TextField(blank=True, null=True)
-    package_type = models.CharField(max_length=100)
+    package_type = models.CharField(max_length=100, blank=True, null=True)
     pax_size = models.IntegerField(blank=True, null=True)
-    contains_travel_fare = models.BooleanField(default=False)
-    transport_type = models.CharField(max_length=45, blank=True, null=True)
     no_of_days = models.IntegerField(blank=True, null=True)
-    package_amount = models.DecimalField(max_digits=15, decimal_places=2)
 
-    # Financial details
-    proposed_package_amount = models.DecimalField(max_digits=15, decimal_places=2)
-    original_package_amount = models.DecimalField(max_digits=15, decimal_places=2)
-    discount_amount = models.DecimalField(max_digits=15, decimal_places=2, default=0.0)
-    margin_of_profit = models.DecimalField(max_digits=15, decimal_places=2, default=0.0)
-    taxes = models.DecimalField(max_digits=15, decimal_places=2, default=0.0)
-    final_amount = models.DecimalField(max_digits=15, decimal_places=2)
-
-    # Snapshot of package-level amenities, inclusions, exclusions, and policies
-    package_amenities = models.JSONField(blank=True, null=True)
+    # Snapshot of package-level data (from lead)
     package_inclusions = models.JSONField(blank=True, null=True)
     package_exclusions = models.JSONField(blank=True, null=True)
+    package_amenities = models.JSONField(blank=True, null=True)
     package_policies = models.JSONField(blank=True, null=True)
+    package_images = models.JSONField(blank=True, null=True)
 
+    # Financial details
+    base_amount = models.DecimalField(max_digits=15, decimal_places=2)
+    discount_amount = models.DecimalField(max_digits=15, decimal_places=2, default=0.0)
+    taxes = models.DecimalField(max_digits=15, decimal_places=2, default=0.0)
+    final_amount = models.DecimalField(max_digits=15, decimal_places=2)
+    amount_paid = models.DecimalField(max_digits=15, decimal_places=2, default=0.0)
+    amount_due = models.DecimalField(max_digits=15, decimal_places=2, default=0.0)
+
+    # Additional notes
+    booking_notes = models.TextField(blank=True, null=True)
+    cancellation_reason = models.TextField(blank=True, null=True)
+
+    # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    confirmed_at = models.DateTimeField(blank=True, null=True)
+    cancelled_at = models.DateTimeField(blank=True, null=True)
 
     class Meta:
         db_table = 'Transaction'
 
 
-class TransactionDayDetails(models.Model):
+class TransactionItineraryItem(models.Model):
+    """
+    Stores customer's finalized itinerary selections from the lead options.
+    Each day has ONE selected hotel and ONE selected transport (chosen from lead's multiple options).
+    """
     id = models.BigAutoField(primary_key=True)
-    transaction = models.ForeignKey(Transaction, related_name="day_details", on_delete=models.PROTECT)
+    transaction = models.ForeignKey(Transaction, related_name="itinerary_items", on_delete=models.PROTECT)
     day = models.IntegerField()
 
-    # Snapshot of hotel details
-    hotel = models.ForeignKey(Hotel, blank=True, null=True, on_delete=models.PROTECT)  # Reference to original hotel
+    # Day details snapshot (from lead)
+    title = models.CharField(max_length=512, blank=True, null=True)
+    description = models.TextField(blank=True, null=True)
+
+    # Customer's SELECTED hotel for this day (one from lead's multiple options)
+    selected_hotel = models.ForeignKey(Hotel, blank=True, null=True, on_delete=models.PROTECT)
     hotel_name = models.CharField(max_length=255, blank=True, null=True)
     hotel_description = models.TextField(blank=True, null=True)
-    hotel_ratings = models.DecimalField(max_digits=3, decimal_places=1, blank=True, null=True)
-    hotel_phoneno = models.CharField(max_length=15, blank=True, null=True)
-    hotel_website = models.URLField(blank=True, null=True)
-    hotel_location_id =  models.ForeignKey(Location, blank=True, null=True, on_delete=models.PROTECT)
-    hotel_location_name = models.CharField(max_length=255, blank=True, null=True)
-    hotel_location_address = models.CharField(max_length=255, blank=True, null=True)
-    hotel_location_city = models.CharField(max_length=255, blank=True, null=True)
-    hotel_location_state = models.CharField(max_length=255, blank=True, null=True)
-    hotel_location_country = models.CharField(max_length=255, blank=True, null=True)
+    hotel_images = models.JSONField(blank=True, null=True)
 
-    # Snapshot of room details
-    room = models.ForeignKey(Room, blank=True, null=True, on_delete=models.PROTECT)  # Reference to original hotel
-    room_name = models.CharField(max_length=100, blank=True, null=True)
-    room_type = models.CharField(max_length=100, blank=True, null=True)
-    room_capacity = models.IntegerField(blank=True, null=True)
-    room_bedtype = models.CharField(max_length=100, blank=True, null=True)
-    room_price_per_night = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
-    room_amenities = models.JSONField(blank=True, null=True)
-    room_inclusions = models.JSONField(blank=True, null=True)
-    room_exclusions = models.JSONField(blank=True, null=True)
-    room_policies = models.JSONField(blank=True, null=True)
-
-    # Snapshot of car dealer details
-    car_dealer = models.ForeignKey(Cardealer, blank=True, null=True, on_delete=models.PROTECT)  # Reference to original car dealer
+    # Customer's SELECTED transport for this day (one from lead's multiple options)
+    selected_car_dealer = models.ForeignKey(Cardealer, blank=True, null=True, on_delete=models.PROTECT)
     car_dealer_name = models.CharField(max_length=255, blank=True, null=True)
-    car_dealer_contact = models.CharField(max_length=15, blank=True, null=True)
-    car_dealer_location_city = models.CharField(max_length=255, blank=True, null=True)
-    car_dealer_location_state = models.CharField(max_length=255, blank=True, null=True)
-    car_dealer_location_country = models.CharField(max_length=255, blank=True, null=True)
-    car_type = models.ForeignKey(CarType, blank=True, null=True, on_delete=models.PROTECT)  # Reference to original car type
-    car_type_name = models.CharField(max_length=255, blank=True, null=True)
-    car_type_capacity = models.IntegerField(blank=True, null=True)
+    car_type = models.CharField(max_length=255, blank=True, null=True)
 
-    # Snapshot of hotel-level amenities, inclusions, exclusions, and policies
-    hotel_amenities = models.JSONField(blank=True, null=True)
-    hotel_inclusions = models.JSONField(blank=True, null=True)
-    hotel_exclusions = models.JSONField(blank=True, null=True)
-    hotel_policies = models.JSONField(blank=True, null=True)
-
-    class Meta:
-        db_table = 'TransactionDayDetails'
-        unique_together = ('transaction', 'day')  # Ensure one entry per day for a transaction
-
-
-class TransactionItineraryDetails(models.Model):
-    id = models.BigAutoField(primary_key=True)
-    transaction_day = models.ForeignKey(TransactionDayDetails, related_name="itinerary_details", on_delete=models.PROTECT)
-
-    # Snapshot of itinerary activity details (either event or sightseeing)
-    activity_type = models.CharField(max_length=50, choices=[('event', 'Event'), ('sightseeing', 'Sightseeing')])
-    activity_name = models.CharField(max_length=255)
-    activity_description = models.TextField(blank=True, null=True)
-    contact_no = models.CharField(max_length=15, blank=True, null=True)
-    charges = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
-
-    # Snapshot of location details
-    location_id =  models.ForeignKey(Location, blank=True, null=True, on_delete=models.PROTECT)
-    location_city = models.CharField(max_length=255, blank=True, null=True)
-    location_state = models.CharField(max_length=255, blank=True, null=True)
-    location_name = models.CharField(max_length=255, blank=True, null=True)
-    location_address = models.TextField(blank=True, null=True)
-    location_country = models.CharField(max_length=255, blank=True, null=True)
+    # Activities snapshot (same for all options, so copied from lead)
+    activities = models.JSONField(blank=True, null=True)  # List of activity objects
 
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        db_table = 'TransactionItineraryDetails'
+        db_table = 'TransactionItineraryItem'
+        unique_together = ('transaction', 'day')
 
 
 class ImageMetadata(models.Model):
@@ -799,6 +796,7 @@ class ImageMetadata(models.Model):
         ('event', 'Event'),
         ('sightseeing', 'Sightseeing'),
         ('itinerary_item', 'Itinerary Item'),
+        ('company_profile', 'Company Profile'),
     ]
 
     tour_operator = models.ForeignKey(Touroperator, on_delete=models.CASCADE)
@@ -875,3 +873,63 @@ class TourOperatorQuota(models.Model):
     max_images_event = models.PositiveIntegerField(default=3)
     max_images_sightseeing = models.PositiveIntegerField(default=3)
     max_images_itinerary_item = models.PositiveIntegerField(default=5)
+    max_images_company_profile = models.PositiveIntegerField(default=5)
+
+    class Meta:
+        db_table = 'tour_management_touroperatorquota'
+
+
+class CompanyProfile(models.Model):
+    """
+    Company Profile model - One profile per tour operator.
+    Managers can update, all users can view.
+    """
+    id = models.BigAutoField(primary_key=True)
+    tour_operator = models.OneToOneField(Touroperator, on_delete=models.CASCADE, related_name='company_profile')
+
+    # Basic Company Information
+    company_name = models.CharField(max_length=255)
+    tagline = models.CharField(max_length=500, blank=True, null=True)
+    description = models.TextField(blank=True, null=True)
+
+    # Contact Information
+    phone_number = models.CharField(max_length=20, blank=True, null=True)
+    alternate_phone = models.CharField(max_length=20, blank=True, null=True)
+    email = models.EmailField(max_length=255, blank=True, null=True)
+    website = models.URLField(max_length=500, blank=True, null=True)
+
+    # Address Information
+    address_line1 = models.CharField(max_length=255, blank=True, null=True)
+    address_line2 = models.CharField(max_length=255, blank=True, null=True)
+    city = models.CharField(max_length=100, blank=True, null=True)
+    state = models.CharField(max_length=100, blank=True, null=True)
+    country = models.CharField(max_length=100, blank=True, null=True)
+    pincode = models.CharField(max_length=20, blank=True, null=True)
+
+    # Social Media Links (Optional)
+    instagram_url = models.URLField(max_length=500, blank=True, null=True)
+    facebook_url = models.URLField(max_length=500, blank=True, null=True)
+    twitter_url = models.URLField(max_length=500, blank=True, null=True)
+    linkedin_url = models.URLField(max_length=500, blank=True, null=True)
+    youtube_url = models.URLField(max_length=500, blank=True, null=True)
+
+    # Business Information
+    registration_number = models.CharField(max_length=100, blank=True, null=True)
+    gst_number = models.CharField(max_length=50, blank=True, null=True)
+    established_year = models.PositiveIntegerField(blank=True, null=True)
+
+    # Images (stored as JSON list of image IDs)
+    logo_image_ids = models.JSONField(default=list, blank=True, null=True)  # Company logo
+    banner_image_ids = models.JSONField(default=list, blank=True, null=True)  # Banner/cover images
+
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='created_profiles')
+    updated_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='updated_profiles')
+
+    def __str__(self):
+        return f"{self.company_name} - {self.tour_operator.name}"
+
+    class Meta:
+        db_table = 'CompanyProfile'

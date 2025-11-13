@@ -1,5 +1,6 @@
 from django.contrib import admin
 from .models import *
+from .forms import UserCreationForm, UserChangeForm
 from django.utils.html import format_html
 
 # Register your models here.
@@ -13,9 +14,54 @@ class TouroperatorAdmin(admin.ModelAdmin):
 
 @admin.register(User)
 class UserAdmin(admin.ModelAdmin):
+    form = UserChangeForm
+    add_form = UserCreationForm
+
     list_display = ('name', 'email', 'role', 'is_active', 'tour_operator_id')
     search_fields = ('name', 'email', 'mobileno')
     list_filter = ('role', 'is_active', 'tour_operator_id')
+
+    # Fields to display when editing an existing user
+    fieldsets = (
+        ('User Information', {
+            'fields': ('tour_operator_id', 'name', 'email', 'username', 'mobileno')
+        }),
+        ('Permissions', {
+            'fields': ('role', 'is_active')
+        }),
+        ('Password', {
+            'fields': ('password',),
+            'description': 'Leave blank if you don\'t want to change the password.'
+        }),
+    )
+
+    # Fields to display when adding a new user
+    add_fieldsets = (
+        ('User Information', {
+            'fields': ('tour_operator_id', 'name', 'email', 'username', 'mobileno')
+        }),
+        ('Permissions', {
+            'fields': ('role', 'is_active')
+        }),
+        ('Password', {
+            'fields': ('password', 'password_confirm'),
+            'description': 'Enter the password for the new user.'
+        }),
+    )
+
+    def get_form(self, request, obj=None, **kwargs):
+        """Use special form during user creation."""
+        defaults = {}
+        if obj is None:
+            defaults['form'] = self.add_form
+        defaults.update(kwargs)
+        return super().get_form(request, obj, **defaults)
+
+    def get_fieldsets(self, request, obj=None):
+        """Use different fieldsets for add and change pages."""
+        if not obj:
+            return self.add_fieldsets
+        return super().get_fieldsets(request, obj)
 
 #@admin.register(ContactInfo)
 #class ContactInfoAdmin(admin.ModelAdmin):
@@ -142,6 +188,41 @@ class PackageCarDealerMappingAdmin(admin.ModelAdmin):
     list_filter = ('tour_operator', 'day')
 
 
+@admin.register(CompanyProfile)
+class CompanyProfileAdmin(admin.ModelAdmin):
+    list_display = ('id', 'company_name', 'tour_operator', 'phone_number', 'email', 'city', 'created_at', 'updated_at')
+    search_fields = ('company_name', 'email', 'phone_number', 'city')
+    list_filter = ('tour_operator', 'city', 'state', 'country')
+    ordering = ('-created_at',)
+    readonly_fields = ('created_at', 'updated_at', 'created_by', 'updated_by')
+
+    fieldsets = (
+        ('Basic Information', {
+            'fields': ('tour_operator', 'company_name', 'tagline', 'description')
+        }),
+        ('Contact Information', {
+            'fields': ('phone_number', 'alternate_phone', 'email', 'website')
+        }),
+        ('Address', {
+            'fields': ('address_line1', 'address_line2', 'city', 'state', 'country', 'pincode')
+        }),
+        ('Social Media', {
+            'fields': ('instagram_url', 'facebook_url', 'twitter_url', 'linkedin_url', 'youtube_url'),
+            'classes': ('collapse',)
+        }),
+        ('Business Information', {
+            'fields': ('registration_number', 'gst_number', 'established_year')
+        }),
+        ('Images', {
+            'fields': ('logo_image_ids', 'banner_image_ids')
+        }),
+        ('Metadata', {
+            'fields': ('created_at', 'updated_at', 'created_by', 'updated_by'),
+            'classes': ('collapse',)
+        })
+    )
+
+
 @admin.register(Customer)
 class CustomerAdmin(admin.ModelAdmin):
     list_display = ('id', 'name', 'phone', 'email',
@@ -153,75 +234,59 @@ class CustomerAdmin(admin.ModelAdmin):
 
 @admin.register(Transaction)
 class TransactionAdmin(admin.ModelAdmin):
-    list_display = ('id', 'customer', 'package_name', 'package_type',
-                    'pax_size', 'proposed_package_amount', 'final_amount', 'created_at')
-    search_fields = ('customer__name', 'package_name', 'package_type')
-    list_filter = ('tour_operator', 'package_type', 'created_at')
+    list_display = ('id', 'customer', 'lead', 'package_name', 'booking_status',
+                    'payment_status', 'final_amount', 'amount_paid', 'amount_due', 'created_at')
+    search_fields = ('customer__name', 'package_name', 'lead__id')
+    list_filter = ('tour_operator', 'booking_status', 'payment_status', 'created_at')
     ordering = ('-created_at',)
+    readonly_fields = ('created_at', 'updated_at', 'confirmed_at', 'cancelled_at')
+    fieldsets = (
+        (None, {
+            'fields': ('lead', 'customer', 'destination', 'created_by', 'tour_operator')
+        }),
+        ('Package Details', {
+            'fields': ('package_name', 'package_description', 'package_type', 'pax_size', 'no_of_days')
+        }),
+        ('Booking Details', {
+            'fields': ('booking_status', 'payment_status', 'travel_start_date', 'travel_end_date')
+        }),
+        ('Financial Details', {
+            'fields': ('base_amount', 'discount_amount', 'taxes', 'final_amount', 'amount_paid', 'amount_due')
+        }),
+        ('Package Features', {
+            'fields': ('package_amenities', 'package_inclusions', 'package_exclusions', 'package_policies', 'package_images')
+        }),
+        ('Notes', {
+            'fields': ('booking_notes', 'cancellation_reason')
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at', 'confirmed_at', 'cancelled_at')
+        })
+    )
+
+
+@admin.register(TransactionItineraryItem)
+class TransactionItineraryItemAdmin(admin.ModelAdmin):
+    list_display = ('id', 'transaction', 'day', 'title', 'hotel_name', 'car_dealer_name')
+    search_fields = ('title', 'hotel_name', 'car_dealer_name')
+    list_filter = ('transaction__tour_operator', 'day')
+    ordering = ('transaction', 'day')
     readonly_fields = ('created_at',)
     fieldsets = (
         (None, {
-            'fields': ('customer', 'package', 'destination', 'created_by', 'tour_operator')
+            'fields': ('transaction', 'day', 'title', 'description')
         }),
-        ('Package Details', {
-            'fields': ('package_name', 'package_description', 'package_type', 'pax_size', 'contains_travel_fare', 'transport_type', 'no_of_days', 'package_amount')
+        ('Selected Hotel', {
+            'fields': ('selected_hotel', 'hotel_name', 'hotel_description', 'hotel_images')
         }),
-        ('Financial Details', {
-            'fields': ('proposed_package_amount', 'original_package_amount', 'discount_amount', 'margin_of_profit', 'taxes', 'final_amount')
+        ('Selected Transport', {
+            'fields': ('selected_car_dealer', 'car_dealer_name', 'car_type')
         }),
-        ('Package Features', {
-            'fields': ('package_amenities', 'package_inclusions', 'package_exclusions', 'package_policies')
+        ('Activities', {
+            'fields': ('activities',)
         }),
-        ('Other', {
+        ('Timestamps', {
             'fields': ('created_at',)
-        })
-    )
-
-
-@admin.register(TransactionDayDetails)
-class TransactionDayDetailsAdmin(admin.ModelAdmin):
-    list_display = ('id', 'transaction', 'day', 'hotel_name',
-                    'car_dealer_name', 'car_type_name')
-    search_fields = ('hotel_name', 'car_dealer_name', 'car_type_name')
-    list_filter = ('transaction__tour_operator', 'day')
-    ordering = ('transaction', 'day')
-    fieldsets = (
-        (None, {
-            'fields': ('transaction', 'day')
-        }),
-        ('Hotel Details', {
-            'fields': ('hotel', 'hotel_name', 'hotel_description', 'hotel_ratings', 'hotel_phoneno', 'hotel_website', 'hotel_location_city', 'hotel_location_state', 'hotel_location_country')
-        }),
-        ('Room Details', {
-            'fields': (
-                'room', 'room_name', 'room_type', 'room_capacity',
-                'room_bedtype', 'room_price_per_night',
-                'room_amenities', 'room_inclusions', 'room_exclusions', 'room_policies',
-            )
-        }),
-
-        ('Car Dealer Details', {
-            'fields': ('car_dealer', 'car_dealer_name', 'car_dealer_contact', 'car_dealer_location_city', 'car_dealer_location_state', 'car_dealer_location_country', 'car_type', 'car_type_name', 'car_type_capacity')
-        }),
-        ('Hotel Policies', {
-            'fields': ('hotel_amenities', 'hotel_inclusions', 'hotel_exclusions', 'hotel_policies')
-        })
-    )
-
-
-@admin.register(TransactionItineraryDetails)
-class TransactionItineraryDetailsAdmin(admin.ModelAdmin):
-    list_display = ('id', 'transaction_day', 'activity_type',
-                    'activity_name', 'charges')
-    search_fields = ('activity_name', 'activity_type')
-    list_filter = ('activity_type', 'transaction_day__day')
-    ordering = ('transaction_day', 'activity_type')
-    fieldsets = (
-        (None, {
-            'fields': ('transaction_day', 'activity_type', 'activity_name', 'activity_description', 'contact_no', 'charges')
-        }),
-        ('Location Details', {
-            'fields': ('location_city', 'location_state', 'location_name', 'location_address', 'location_country')
         })
     )
 
@@ -345,6 +410,7 @@ class TourOperatorQuotaAdmin(admin.ModelAdmin):
         'max_images_car_dealer',
         'max_images_event',
         'max_images_sightseeing',
+        'max_images_company_profile',
     )
     list_filter = ('tour_operator',)
     search_fields = ('tour_operator__name',)
@@ -363,6 +429,7 @@ class TourOperatorQuotaAdmin(admin.ModelAdmin):
                 'max_images_car_dealer',
                 'max_images_event',
                 'max_images_sightseeing',
+                'max_images_company_profile',
             ),
             'description': 'Specify the maximum number of images allowed per module for this tour operator.'
         }),
