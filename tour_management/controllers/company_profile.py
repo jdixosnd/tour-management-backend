@@ -10,9 +10,19 @@ def get_profile_images(image_ids, include_binary=False):
     """
     Helper function to fetch image objects with URLs from image IDs.
     Returns list of image objects with id, description, order, and image_url.
+
+    Handles both cases:
+    - image_ids is a list of integers: [1, 2, 3]
+    - image_ids is a list of dicts (corrupted data): [{'id': 1, ...}, ...]
     """
     if not image_ids:
         return []
+
+    # Extract IDs if image_ids contains dictionaries (corrupted data)
+    if isinstance(image_ids, list) and len(image_ids) > 0:
+        if isinstance(image_ids[0], dict):
+            # Already contains full objects, extract IDs
+            image_ids = [img['id'] if isinstance(img, dict) else img for img in image_ids]
 
     images = ImageMetadata.objects.filter(id__in=image_ids).order_by('order')
     images_data = []
