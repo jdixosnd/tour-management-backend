@@ -31,6 +31,7 @@ urlpatterns = [
         path('destination/add/', destination.add_destination, name='add_destination'),
         path('destination/get/', destination.get_destinations, name='get_destinations'),
         path('destination/update/', destination.update_destination, name='update_destination'),
+        path('destination/delete/', destination.delete_destination, name='delete_destination'),
 
         path('event/add/', event.add_event, name='add_event'),
         path('event/get/', event.get_events, name='get_events'),
@@ -44,6 +45,7 @@ urlpatterns = [
         path('cardealer/add/', cardealer.add_cardealer, name='add_cardealer'),
         path('cardealer/get/', cardealer.get_cardealer, name='get_cardealer'),
         path('cardealer/update/',cardealer.update_cardealer, name= 'update_cardealer'),
+        path('cardealer/delete/',cardealer.delete_cardealer, name= 'delete_cardealer'),
         path('add_car_type_for_cardealer/add/',cardealer.add_car_type_for_cardealer, name = 'add_car_type_for_cardealer'),
 
         path('amenity/add/', amenity.add_amenity, name='add_amenity'),

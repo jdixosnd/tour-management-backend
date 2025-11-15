@@ -1,7 +1,7 @@
 from __future__ import unicode_literals
 from django.http import HttpResponse, HttpResponseBadRequest
 import json
-from ..models import Location, Touroperator, User, Cardealer, CarType, Destination, StateCityToDestinationMapping, StateCity
+from ..models import Location, Touroperator, User, Cardealer, CarType, Destination, StateCityToDestinationMapping, StateCity, LeadCarDealerMapping, PackageCarDealerMapping
 from django.core.exceptions import ValidationError
 from django.contrib.auth.hashers import make_password
 from django.core import serializers
@@ -367,3 +367,86 @@ def get_cardealer(request):
 
         return JsonResponse(result, safe=False)
 
+
+def delete_cardealer(request):
+    """
+    Delete a car dealer if it's not referenced by any leads or packages.
+
+    Required fields:
+    - id: ID of the car dealer to delete
+    - tour_operator_id: ID of the tour operator (for verification)
+    """
+    if request.method != 'POST':
+        return JsonResponse({"error": "Only POST method is allowed"}, status=405)
+
+    data = json.loads(request.body.decode("utf-8"))
+    required_keys = ["id", "tour_operator_id"]
+    missing_keys = set(required_keys) - data.keys()
+
+    if missing_keys:
+        return JsonResponse(
+            {"error": ",".join(missing_keys) + " is/are required fields."},
+            status=400
+        )
+
+    cardealer_id = data['id']
+    tour_operator_id = data['tour_operator_id']
+
+    try:
+        # Get the car dealer and verify it belongs to the tour operator
+        cardealer = Cardealer.objects.get(id=cardealer_id)
+
+        if cardealer.tour_operator.id != tour_operator_id:
+            return JsonResponse(
+                {"error": "Car dealer does not belong to the specified tour operator."},
+                status=403
+            )
+
+        # Check if car dealer is referenced by any leads
+        lead_count = LeadCarDealerMapping.objects.filter(car_dealer=cardealer).count()
+        if lead_count > 0:
+            return JsonResponse(
+                {
+                    "error": f"Cannot delete car dealer. It is referenced by {lead_count} lead(s).",
+                    "referenced_by": "leads",
+                    "count": lead_count
+                },
+                status=409
+            )
+
+        # Check if car dealer is referenced by any packages
+        package_count = PackageCarDealerMapping.objects.filter(car_dealer=cardealer).count()
+        if package_count > 0:
+            return JsonResponse(
+                {
+                    "error": f"Cannot delete car dealer. It is referenced by {package_count} package(s).",
+                    "referenced_by": "packages",
+                    "count": package_count
+                },
+                status=409
+            )
+
+        # If no protected references exist, delete the car dealer
+        # This will cascade delete:
+        # - CarType entries associated with this car dealer
+        cardealer_name = cardealer.name
+        cardealer.delete()
+
+        return JsonResponse(
+            {
+                "success": f"Car dealer '{cardealer_name}' deleted successfully.",
+                "deleted_id": cardealer_id
+            },
+            status=200
+        )
+
+    except Cardealer.DoesNotExist:
+        return JsonResponse(
+            {"error": "Car dealer not found."},
+            status=404
+        )
+    except Exception as e:
+        return JsonResponse(
+            {"error": f"An error occurred: {str(e)}"},
+            status=500
+        )

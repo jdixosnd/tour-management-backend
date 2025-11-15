@@ -500,6 +500,7 @@ def get_hotels(request):
         if request.method == 'POST':
             data = json.loads(request.body.decode("utf-8"))
             tour_operator_id = data["tour_operator_id"]
+            hotel_id = data.get("id")  # Optional: specific hotel ID
             city = None
             include_inactive = None
             include_binary = data.get("include_binary", False)  # Optional: include binary data
@@ -514,8 +515,12 @@ def get_hotels(request):
             if not tour_operator_id:
                 return JsonResponse({"error": "tour_operator_id is required."}, status=400)
 
-            # Fetch hotels based on tour_operator_id and optional city filter
+            # Fetch hotels based on tour_operator_id and optional filters
             hotels_query = Hotel.objects.filter(tour_operator_id=tour_operator_id)
+
+            # Filter by specific hotel ID if provided
+            if hotel_id:
+                hotels_query = hotels_query.filter(id=hotel_id)
 
             if not include_inactive:
                 hotels_query = hotels_query.filter(is_active =True)

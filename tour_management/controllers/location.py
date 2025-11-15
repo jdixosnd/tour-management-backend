@@ -1,11 +1,12 @@
 from __future__ import unicode_literals
-from django.http import HttpResponse, HttpResponseBadRequest
+from django.http import HttpResponse, HttpResponseBadRequest, JsonResponse
 import json
-from ..models import Location, Touroperator, User
+from ..models import Location, Touroperator, User, Cardealer, Hotel, Event, SightSeeing
 from django.core.exceptions import ValidationError
 from django.contrib.auth.hashers import make_password
 from django.core import serializers
 from django.core.exceptions import ObjectDoesNotExist
+from django.db.models import ProtectedError
 
 
 def add_location_to_db(data):
@@ -179,20 +180,99 @@ def get_locations(request):
         return HttpResponse(json.dumps(locations), content_type='application/json')
 
 def delete_location(request):
+    """
+    Delete a location if it's not referenced by any protected resources.
+
+    Required fields:
+    - location_id: ID of the location to delete
+    - tour_operator_id: ID of the tour operator (for verification)
+    """
+    if request.method != 'POST':
+        return JsonResponse({"error": "Only POST method is allowed"}, status=405)
+
     data = json.loads(request.body.decode("utf-8"))
     required_keys = ["location_id", "tour_operator_id"]
     missing_keys = set(required_keys) - data.keys()
 
     if missing_keys:
-            return HttpResponseBadRequest(json.dumps({"error": ",".join(missing_keys) + " is/are required fields."}), content_type='application/json')
+        return JsonResponse(
+            {"error": ",".join(missing_keys) + " is/are required fields."},
+            status=400
+        )
+
     location_id = data['location_id']
     tour_operator_id = data['tour_operator_id']
 
     try:
+        # Get the location and verify it belongs to the tour operator
         location = Location.objects.get(id=location_id, tour_operator_id=tour_operator_id)
-    except ObjectDoesNotExist:
-        return HttpResponseBadRequest(json.dumps({"error": "Location not found or doesn't belong to the specified tour operator."}), content_type='application/json')
+        location_name = location.name
 
-    # Delete the location
-    location.delete()
-    return HttpResponse(json.dumps({"success": "Location deleted successfully."}), content_type='application/json')
+        # Check if location is used by any hotels
+        hotels_count = Hotel.objects.filter(location=location).count()
+
+        # Check if location is used by any car dealers
+        cardealers_count = Cardealer.objects.filter(location=location).count()
+
+        # Check if location is used by any events
+        events_count = Event.objects.filter(location=location).count()
+
+        # Check if location is used by any sightseeing
+        sightseeing_count = SightSeeing.objects.filter(location=location).count()
+
+        # Build list of references
+        references = []
+        if hotels_count > 0:
+            references.append(f"{hotels_count} hotel(s)")
+        if cardealers_count > 0:
+            references.append(f"{cardealers_count} car dealer(s)")
+        if events_count > 0:
+            references.append(f"{events_count} event(s)")
+        if sightseeing_count > 0:
+            references.append(f"{sightseeing_count} sightseeing(s)")
+
+        # If there are references, check if they're used in leads/transactions
+        if references:
+            return JsonResponse(
+                {
+                    "error": f"Cannot delete location. It is used by {', '.join(references)}. These may be referenced in leads or transactions.",
+                    "details": {
+                        "hotels": hotels_count,
+                        "car_dealers": cardealers_count,
+                        "events": events_count,
+                        "sightseeing": sightseeing_count
+                    }
+                },
+                status=409
+            )
+
+        # If no references, delete the location
+        location.delete()
+
+        return JsonResponse(
+            {
+                "success": f"Location '{location_name}' deleted successfully.",
+                "deleted_id": location_id
+            },
+            status=200
+        )
+
+    except ObjectDoesNotExist:
+        return JsonResponse(
+            {"error": "Location not found or doesn't belong to the specified tour operator."},
+            status=404
+        )
+    except ProtectedError as e:
+        # This shouldn't happen if we check properly above, but just in case
+        return JsonResponse(
+            {
+                "error": "Cannot delete location because it is referenced by other records (leads or transactions).",
+                "details": str(e)
+            },
+            status=409
+        )
+    except Exception as e:
+        return JsonResponse(
+            {"error": f"An error occurred: {str(e)}"},
+            status=500
+        )

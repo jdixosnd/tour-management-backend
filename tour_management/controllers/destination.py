@@ -1,7 +1,7 @@
 from __future__ import unicode_literals
 from django.http import HttpResponse, HttpResponseBadRequest
 import json
-from ..models import Destination, StateCityToDestinationMapping,StateCity,Touroperator, User, Location
+from ..models import Destination, StateCityToDestinationMapping,StateCity,Touroperator, User, Location, LeadDestinationMapping, Transaction
 from django.core.exceptions import ValidationError
 from django.contrib.auth.hashers import make_password
 from django.core import serializers
@@ -468,3 +468,90 @@ def get_destinations(request):
                 "next": paginator.get_next_link(),
                 "previous": paginator.get_previous_link(),
             }}), content_type='application/json')
+
+
+def delete_destination(request):
+    """
+    Delete a destination if it's not referenced by any leads or transactions.
+
+    Required fields:
+    - destination_id: ID of the destination to delete
+    - tour_operator_id: ID of the tour operator (for verification)
+    """
+    if request.method != 'POST':
+        return JsonResponse({"error": "Only POST method is allowed"}, status=405)
+
+    data = json.loads(request.body.decode("utf-8"))
+    required_keys = ["destination_id", "tour_operator_id"]
+    missing_keys = set(required_keys) - data.keys()
+
+    if missing_keys:
+        return JsonResponse(
+            {"error": ",".join(missing_keys) + " is/are required fields."},
+            status=400
+        )
+
+    destination_id = data['destination_id']
+    tour_operator_id = data['tour_operator_id']
+
+    try:
+        # Get the destination and verify it belongs to the tour operator
+        destination = Destination.objects.get(id=destination_id)
+
+        if destination.tour_operator_id.id != tour_operator_id:
+            return JsonResponse(
+                {"error": "Destination does not belong to the specified tour operator."},
+                status=403
+            )
+
+        # Check if destination is referenced by any leads
+        lead_count = LeadDestinationMapping.objects.filter(destination=destination).count()
+        if lead_count > 0:
+            return JsonResponse(
+                {
+                    "error": f"Cannot delete destination. It is referenced by {lead_count} lead(s).",
+                    "referenced_by": "leads",
+                    "count": lead_count
+                },
+                status=409
+            )
+
+        # Check if destination is referenced by any transactions
+        transaction_count = Transaction.objects.filter(destination=destination).count()
+        if transaction_count > 0:
+            return JsonResponse(
+                {
+                    "error": f"Cannot delete destination. It is referenced by {transaction_count} transaction(s).",
+                    "referenced_by": "transactions",
+                    "count": transaction_count
+                },
+                status=409
+            )
+
+        # If no protected references exist, delete the destination
+        # This will cascade delete:
+        # - StateCityToDestinationMapping entries
+        # - Package entries (if any)
+        # - DestinationPackageMapping entries
+        # - Itineraryitem entries
+        destination_name = destination.name
+        destination.delete()
+
+        return JsonResponse(
+            {
+                "success": f"Destination '{destination_name}' deleted successfully.",
+                "deleted_id": destination_id
+            },
+            status=200
+        )
+
+    except Destination.DoesNotExist:
+        return JsonResponse(
+            {"error": "Destination not found."},
+            status=404
+        )
+    except Exception as e:
+        return JsonResponse(
+            {"error": f"An error occurred: {str(e)}"},
+            status=500
+        )
