@@ -11,7 +11,7 @@ from tour_management.views import probe
 from tour_management.controllers import (user, location, destination, hotel,
                                           cardealer, package, event, amenity,
                                             inclusion, exclusion, policy, transaction, touroperator,
-                                            lead, customer, booking, company_profile)
+                                            lead, customer, booking, company_profile, lead_pdf)
 from tour_management import images
 urlpatterns = [
     url(r'^tour_management/$',
@@ -69,6 +69,7 @@ urlpatterns = [
         path('lead/get/',lead.get_lead,name='get_lead'),
         path('lead/get_all/',lead.get_all_leads,name='get_all_leads'),
         path('lead/update/',lead.update_lead,name='update_lead'),
+        path('lead/generate_pdf/',lead_pdf.generate_lead_pdf_api,name='generate_lead_pdf'),
 
         # New Booking APIs (working with Lead-based system)
         path('booking/add/', booking.add_booking, name='add_booking'),

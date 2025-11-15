@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tour Package Proposal - Lead #{{ lead.lead_id }}</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 1.5cm;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Arial', 'Helvetica', sans-serif;
+            font-size: 11pt;
+            line-height: 1.6;
+            color: #333;
+        }
+        
+        .header {
+            text-align: center;
+            padding: 20px 0;
+            border-bottom: 3px solid #2c3e50;
+            margin-bottom: 30px;
+        }
+        
+        .company-logo {
+            max-width: 150px;
+            max-height: 80px;
+            margin-bottom: 10px;
+        }
+        
+        .company-name {
+            font-size: 24pt;
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 5px;
+        }
+        
+        .company-tagline {
+            font-size: 12pt;
+            color: #7f8c8d;
+            font-style: italic;
+        }
+
+        .banner-image {
+            width: 100%;
+            max-height: 200px;
+            object-fit: cover;
+            margin-bottom: 20px;
+            border-radius: 5px;
+        }
+
+        .document-title {
+            font-size: 18pt;
+            font-weight: bold;
+            color: #2c3e50;
+            text-align: center;
+            margin: 20px 0;
+            text-transform: uppercase;
+        }
+
+        .image-gallery {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin: 15px 0;
+        }
+
+        .gallery-image {
+            width: 48%;
+            height: auto;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+        }
+
+        .single-image {
+            width: 100%;
+            max-height: 300px;
+            object-fit: cover;
+        }
+        
+        .section {
+            margin-bottom: 25px;
+            page-break-inside: avoid;
+        }
+        
+        .section-title {
+            font-size: 14pt;
+            font-weight: bold;
+            color: #2c3e50;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 5px;
+            margin-bottom: 15px;
+        }
+        
+        .info-grid {
+            display: table;
+            width: 100%;
+            margin-bottom: 15px;
+        }
+        
+        .info-row {
+            display: table-row;
+        }
+        
+        .info-label {
+            display: table-cell;
+            font-weight: bold;
+            color: #555;
+            padding: 8px 15px 8px 0;
+            width: 35%;
+        }
+        
+        .info-value {
+            display: table-cell;
+            padding: 8px 0;
+            color: #333;
+        }
+        
+        .package-summary {
+            background-color: #ecf0f1;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        
+        .package-summary h3 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+        
+        .itinerary-day {
+            margin-bottom: 20px;
+            border-left: 4px solid #3498db;
+            padding-left: 15px;
+        }
+        
+        .day-header {
+            font-size: 13pt;
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+        
+        .day-title {
+            font-size: 12pt;
+            color: #3498db;
+            margin-bottom: 8px;
+        }
+        
+        .day-description {
+            margin-bottom: 10px;
+            text-align: justify;
+        }
+        
+        .hotel-info, .transport-info {
+            background-color: #f8f9fa;
+            padding: 10px;
+            margin: 8px 0;
+            border-radius: 3px;
+        }
+        
+        .hotel-info strong, .transport-info strong {
+            color: #2c3e50;
+        }
+        
+        .activities-list {
+            margin: 10px 0;
+        }
+        
+        .activity-item {
+            padding: 8px 0;
+            border-bottom: 1px dotted #ddd;
+        }
+        
+        .activity-item:last-child {
+            border-bottom: none;
+        }
+        
+        .inclusions-exclusions {
+            display: table;
+            width: 100%;
+        }
+        
+        .column {
+            display: table-cell;
+            width: 48%;
+            vertical-align: top;
+            padding: 10px;
+        }
+        
+        .column:first-child {
+            padding-right: 20px;
+        }
+
+        .list-item {
+            padding: 5px 0;
+            padding-left: 20px;
+            position: relative;
+        }
+
+        .list-item:before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            color: #27ae60;
+            font-weight: bold;
+        }
+
+        .exclusion-item:before {
+            content: "✗";
+            color: #e74c3c;
+        }
+
+        .terms-conditions {
+            background-color: #fff9e6;
+            padding: 15px;
+            border-left: 4px solid #f39c12;
+            margin-top: 20px;
+        }
+
+        .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 2px solid #ecf0f1;
+            text-align: center;
+            font-size: 9pt;
+            color: #7f8c8d;
+        }
+
+        .contact-info {
+            margin-top: 10px;
+        }
+
+        .price-box {
+            background-color: #3498db;
+            color: white;
+            padding: 15px;
+            border-radius: 5px;
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .price-label {
+            font-size: 11pt;
+            margin-bottom: 5px;
+        }
+
+        .price-amount {
+            font-size: 20pt;
+            font-weight: bold;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+        }
+
+        th, td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+
+        th {
+            background-color: #2c3e50;
+            color: white;
+            font-weight: bold;
+        }
+
+        .text-center {
+            text-align: center;
+        }
+
+        .text-right {
+            text-align: right;
+        }
+
+        .mb-10 {
+            margin-bottom: 10px;
+        }
+
+        .mb-20 {
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Banner Image -->
+    {% if company_profile.images.banner %}
+        {% for banner in company_profile.images.banner %}
+            {% if forloop.first %}
+                <img src="{{ banner.image_url }}" alt="Company Banner" class="banner-image">
+            {% endif %}
+        {% endfor %}
+    {% endif %}
+
+    <!-- Header with Company Branding -->
+    <div class="header">
+        {% if company_profile.images.logo %}
+            {% for logo in company_profile.images.logo %}
+                {% if forloop.first %}
+                    <img src="{{ logo.image_url }}" alt="Company Logo" class="company-logo">
+                {% endif %}
+            {% endfor %}
+        {% endif %}
+
+        <div class="company-name">
+            {{ company_profile.company_name|default:"Tour Management Company" }}
+        </div>
+
+        {% if company_profile.tagline %}
+            <div class="company-tagline">{{ company_profile.tagline }}</div>
+        {% endif %}
+    </div>
+
+    <div class="document-title">Tour Package Proposal</div>
+
+    <!-- Lead Information -->
+    <div class="section">
+        <div class="section-title">Proposal Information</div>
+        <div class="info-grid">
+            <div class="info-row">
+                <div class="info-label">Proposal ID:</div>
+                <div class="info-value">LEAD-{{ lead.lead_id }}</div>
+            </div>
+            <div class="info-row">
+                <div class="info-label">Date Generated:</div>
+                <div class="info-value">{{ generated_date }} at {{ generated_time }}</div>
+            </div>
+            <div class="info-row">
+                <div class="info-label">Status:</div>
+                <div class="info-value">{{ lead.status|upper }}</div>
+            </div>
+            {% if created_by %}
+            <div class="info-row">
+                <div class="info-label">Prepared By:</div>
+                <div class="info-value">{{ created_by.name }}{% if created_by.email %} ({{ created_by.email }}){% endif %}</div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Customer Information -->
+    <div class="section">
+        <div class="section-title">Customer Information</div>
+        <div class="info-grid">
+            <div class="info-row">
+                <div class="info-label">Name:</div>
+                <div class="info-value">{{ customer.name }}</div>
+            </div>
+            <div class="info-row">
+                <div class="info-label">Phone:</div>
+                <div class="info-value">{{ customer.phone }}</div>
+            </div>
+            <div class="info-row">
+                <div class="info-label">Email:</div>
+                <div class="info-value">{{ customer.email }}</div>
+            </div>
+            {% if customer.address %}
+            <div class="info-row">
+                <div class="info-label">Address:</div>
+                <div class="info-value">{{ customer.address }}</div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Package Summary -->
+    <div class="section">
+        <div class="section-title">Package Overview</div>
+        <div class="package-summary">
+            <h3>{{ package.name }}</h3>
+            <div class="info-grid">
+                <div class="info-row">
+                    <div class="info-label">Package Type:</div>
+                    <div class="info-value">{{ package.type|title }}</div>
+                </div>
+                <div class="info-row">
+                    <div class="info-label">Duration:</div>
+                    <div class="info-value">{{ package.no_of_days }} Days</div>
+                </div>
+                <div class="info-row">
+                    <div class="info-label">Group Size:</div>
+                    <div class="info-value">{{ package.pax_size }} Person(s)</div>
+                </div>
+                {% if package.transport_type %}
+                <div class="info-row">
+                    <div class="info-label">Transport Type:</div>
+                    <div class="info-value">{{ package.transport_type }}</div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        {% if package.description %}
+        <div class="mb-20">
+            <strong>Description:</strong>
+            <p>{{ package.description }}</p>
+        </div>
+        {% endif %}
+
+        {% if package.package_amount %}
+        <div class="price-box">
+            <div class="price-label">Total Package Price</div>
+            <div class="price-amount">₹ {{ package.package_amount }}</div>
+        </div>
+        {% endif %}
+
+        <!-- Package Images -->
+        {% if package.images %}
+        <div class="mb-20">
+            <strong>Package Gallery:</strong>
+            <div class="image-gallery">
+                {% for image in package.images %}
+                    <img src="{{ image.image_url }}" alt="{{ image.description|default:'Package Image' }}" class="gallery-image">
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Detailed Itinerary -->
+    <div class="section">
+        <div class="section-title">Detailed Itinerary</div>
+
+        {% for day_detail in package.itinerary_details %}
+        <div class="itinerary-day">
+            <div class="day-header">Day {{ day_detail.day }}</div>
+
+            {% if day_detail.title %}
+            <div class="day-title">{{ day_detail.title }}</div>
+            {% endif %}
+
+            {% if day_detail.description %}
+            <div class="day-description">{{ day_detail.description }}</div>
+            {% endif %}
+
+            <!-- Hotels for this day -->
+            {% if day_detail.hotel_details %}
+            <div class="hotel-info">
+                <strong>Accommodation Options:</strong>
+                {% for hotel in day_detail.hotel_details %}
+                <div class="mb-10">
+                    • {{ hotel.name }}
+                    {% if hotel.location %}
+                        - {{ hotel.location.city }}, {{ hotel.location.state }}
+                    {% endif %}
+                    {% if hotel.description %}
+                        <br><em>{{ hotel.description }}</em>
+                    {% endif %}
+
+                    <!-- Hotel Images -->
+                    {% if hotel.images %}
+                    <div class="image-gallery" style="margin-top: 10px;">
+                        {% for image in hotel.images %}
+                            {% if forloop.counter <= 4 %}
+                                <img src="{{ image.image_url }}" alt="{{ hotel.name }}" class="gallery-image" style="width: 23%; height: auto;">
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <!-- Transportation for this day -->
+            {% if day_detail.car_dealers %}
+            <div class="transport-info">
+                <strong>Transportation Options:</strong>
+                {% for car_dealer in day_detail.car_dealers %}
+                <div class="mb-10">
+                    • {{ car_dealer.name }}
+                    {% if car_dealer.location %}
+                        - {{ car_dealer.location.city }}
+                    {% endif %}
+                    {% if car_dealer.contact_no %}
+                        <br>Contact: {{ car_dealer.contact_no }}
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <!-- Activities for this day -->
+            {% if day_detail.activities %}
+            <div class="activities-list">
+                <strong>Activities & Sightseeing:</strong>
+                {% for activity in day_detail.activities %}
+                <div class="activity-item">
+                    <strong>{{ activity.name }}</strong>
+                    {% if activity.description %}
+                        <br>{{ activity.description }}
+                    {% endif %}
+                    {% if activity.charges %}
+                        <br><em>Charges: ₹{{ activity.charges }}</em>
+                    {% endif %}
+
+                    <!-- Activity Images -->
+                    {% if activity.images %}
+                    <div class="image-gallery" style="margin-top: 10px;">
+                        {% for image in activity.images %}
+                            {% if forloop.counter <= 4 %}
+                                <img src="{{ image.image_url }}" alt="{{ activity.name }}" class="gallery-image" style="width: 23%; height: auto;">
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Inclusions and Exclusions -->
+    <div class="section">
+        <div class="section-title">Package Inclusions & Exclusions</div>
+        <div class="inclusions-exclusions">
+            <div class="column">
+                <h4 style="color: #27ae60; margin-bottom: 10px;">✓ Inclusions</h4>
+                {% if package.inclusions %}
+                    {% for inclusion in package.inclusions %}
+                    <div class="list-item">{{ inclusion.name }}</div>
+                    {% endfor %}
+                {% else %}
+                    <p>No inclusions specified.</p>
+                {% endif %}
+            </div>
+
+            <div class="column">
+                <h4 style="color: #e74c3c; margin-bottom: 10px;">✗ Exclusions</h4>
+                {% if package.exclusions %}
+                    {% for exclusion in package.exclusions %}
+                    <div class="list-item exclusion-item">{{ exclusion.name }}</div>
+                    {% endfor %}
+                {% else %}
+                    <p>No exclusions specified.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Terms and Conditions -->
+    {% if package.terms_and_conditions %}
+    <div class="section">
+        <div class="section-title">Terms & Conditions</div>
+        <div class="terms-conditions">
+            {{ package.terms_and_conditions }}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Footer with Company Contact Information -->
+    <div class="footer">
+        <div class="contact-info">
+            {% if company_profile.contact_info %}
+                <strong>{{ company_profile.company_name }}</strong><br>
+                {% if company_profile.contact_info.address_line1 %}
+                    {{ company_profile.contact_info.address_line1 }}<br>
+                    {% if company_profile.contact_info.address_line2 %}
+                        {{ company_profile.contact_info.address_line2 }}<br>
+                    {% endif %}
+                    {{ company_profile.contact_info.city }}, {{ company_profile.contact_info.state }} - {{ company_profile.contact_info.pincode }}<br>
+                {% endif %}
+                {% if company_profile.contact_info.phone_number %}
+                    Phone: {{ company_profile.contact_info.phone_number }}
+                {% endif %}
+                {% if company_profile.contact_info.email %}
+                    | Email: {{ company_profile.contact_info.email }}
+                {% endif %}
+                {% if company_profile.contact_info.website %}
+                    <br>Website: {{ company_profile.contact_info.website }}
+                {% endif %}
+            {% endif %}
+        </div>
+        <p style="margin-top: 15px; font-size: 8pt;">
+            This is a computer-generated proposal. For any queries, please contact us.
+        </p>
+    </div>
+</body>
+</html>
+

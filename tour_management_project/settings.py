@@ -67,7 +67,7 @@ ROOT_URLCONF = 'tour_management_project.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [os.path.join(BASE_DIR, 'tour_management', 'templates')],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [

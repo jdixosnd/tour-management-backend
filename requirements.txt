@@ -9,3 +9,4 @@ pymysql
 cryptography
 django-cors-headers
 Pillow
+weasyprint

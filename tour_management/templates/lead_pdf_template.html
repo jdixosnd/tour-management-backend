@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ package.name }} - Tour Itinerary</title>
+    
+    <!-- Link to a Google Font (Inter) - WeasyPrint can fetch this -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        /* --- Page Setup for WeasyPrint --- */
+        @page {
+            size: A4;
+            /* Set margins */
+            margin: 1.5cm;
+
+            /* --- Page Footer --- */
+            @bottom-left {
+                content: "{{ company_profile.company_name }}";
+                font-size: 10px;
+                color: #888;
+            }
+            @bottom-right {
+                content: "Page " counter(page) " of " counter(pages);
+                font-size: 10px;
+                color: #888;
+            }
+        }
+
+        /* --- Global Styles --- */
+        html, body {
+            font-family: 'Inter', Arial, sans-serif;
+            font-size: 11px; /* PDFs are often read zoomed in, 11px is crisp */
+            line-height: 1.6;
+            color: #333;
+            margin: 0;
+            padding: 0;
+            width: 100%;
+        }
+
+        /* --- Typography --- */
+        h1, h2, h3, h4 {
+            font-weight: 600;
+            margin: 20px 0 10px 0;
+            color: #0d47a1; /* Deep Corporate Blue */
+            line-height: 1.3;
+            page-break-after: avoid; /* <-- ADDED: Prevents headings from being orphaned on a page */
+        }
+
+        h1 { font-size: 26px; text-align: center; }
+        h2 {
+            font-size: 20px;
+            border-bottom: 2px solid #e0e0e0;
+            padding-bottom: 5px;
+            margin-top: 15px;
+            margin-bottom: 15px;
+        }
+        h3 { font-size: 16px; color: #d32f2f; } /* Accent Red for Day Titles */
+        h4 { font-size: 13px; color: #1565c0; margin-bottom: 5px; }
+
+        p {
+            margin-bottom: 10px;
+        }
+        
+        ul {
+            padding-left: 20px;
+            margin: 0;
+        }
+        li {
+            margin-bottom: 4px;
+        }
+
+        /* --- Reusable Image Placeholder --- */
+        .img-placeholder {
+            border: 1px dashed #ccc;
+            background: #f9f9f9;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            color: #999;
+            font-size: 10px;
+        }
+
+        /* --- Header Section --- */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 3px solid #0d47a1;
+            padding-bottom: 15px;
+            margin-bottom: 20px;
+        }
+        .header .logo {
+            max-width: 160px;
+            max-height: 75px;
+            object-fit: contain;
+        }
+        .header .company-info {
+            text-align: right;
+            font-size: 12px;
+        }
+        .header .company-info h1 {
+            font-size: 22px;
+            margin: 0;
+            text-align: right;
+        }
+
+        /* --- Document Info Box --- */
+        .doc-info {
+            background-color: #f4f6f8;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 25px;
+            /* Use grid for clean alignment */
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px 20px;
+        }
+        .doc-info div {
+            font-size: 12px;
+        }
+        .doc-info strong {
+            display: inline-block;
+            width: 110px;
+            color: #555;
+            font-weight: 500;
+        }
+
+        /* --- Main Package Details --- */
+        .package-header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .package-header h1 {
+            font-size: 28px;
+            color: #222;
+            margin: 0 0 5px 0;
+            font-weight: 700;
+        }
+        .package-header .quick-facts {
+            font-size: 16px;
+            color: #d32f2f;
+            font-weight: 600;
+        }
+
+        .hero-image {
+            width: 100%;
+            height: 280px;
+            object-fit: cover;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            background-color: #eee;
+        }
+
+        .package-description {
+            font-size: 12px;
+            background: #fff;
+            border-left: 4px solid #f57c00; /* Accent Orange */
+            padding: 15px;
+            margin-bottom: 25px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            page-break-inside: avoid;
+            page-break-after: always; /* Force page break after Package Overview */
+        }
+
+        /* --- Inclusions/Exclusions Grid --- */
+        .package-lists {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 25px;
+            /* Try to keep this whole block together */
+            page-break-inside: avoid;
+        }
+        .list-box {
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 15px;
+            background: #fafafa;
+        }
+        .list-box h4 {
+            margin-top: 0;
+            margin-bottom: 10px;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 5px;
+        }
+
+        /* --- Itinerary Section Wrapper --- */
+        .itinerary-section {
+            page-break-before: always; /* Force page break before Daily Itinerary - starts on new page */
+        }
+
+        /* --- Itinerary Day Block --- */
+        .itinerary-day {
+            margin-bottom: 25px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background: #fff;
+            /* Allow page breaks inside if content is too long */
+            page-break-inside: auto;
+        }
+        
+        .itinerary-day .day-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #f9f9f9;
+            padding: 10px 15px;
+            border-radius: 6px;
+            /* Use negative margins to span full width of parent padding */
+            margin: -20px -20px 15px -20px;
+            border-bottom: 1px solid #ddd;
+        }
+        .itinerary-day .day-header h3 {
+            margin: 0;
+        }
+        .itinerary-day .day-header .location {
+            font-size: 13px;
+            font-weight: 500;
+            color: #444;
+        }
+        
+        .day-description {
+            margin-bottom: 20px;
+        }
+
+        /* --- Sub-Details (Hotel, Activity, Transport) --- */
+        .details-section {
+            margin-top: 20px;
+        }
+        
+        .detail-item {
+            margin-bottom: 15px;
+            display: flex; /* Use flex for image + text layout */
+            gap: 15px;
+            padding: 10px;
+            border: 1px solid #eee;
+            border-radius: 6px;
+            background: #fafafa;
+        }
+        
+        .detail-item img {
+            width: 100px;
+            height: 80px;
+            object-fit: cover;
+            border-radius: 4px;
+            flex-shrink: 0; /* Prevent image from shrinking */
+        }
+
+        .detail-item .img-placeholder {
+            width: 100px;
+            height: 80px;
+            border-radius: 4px;
+            flex-shrink: 0;
+        }
+
+        .detail-item .info {
+            flex: 1; /* Allow info to grow */
+        }
+        
+        .detail-item .info strong {
+            font-size: 12px;
+            color: #333;
+            display: block;
+            font-weight: 600;
+        }
+        .detail-item .info p {
+            font-size: 11px;
+            color: #666;
+            margin: 2px 0;
+        }
+        
+        /* --- NEW: Mini-gallery for hotels/activities/rooms --- */
+        .mini-gallery {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+            overflow-x: auto; /* Allows horizontal scrolling if many images */
+            padding-bottom: 5px; /* For scrollbar space */
+        }
+        .mini-gallery img {
+            width: 80px;
+            height: 60px;
+            object-fit: cover;
+            border-radius: 4px;
+            flex-shrink: 0; /* Prevent images from shrinking */
+        }
+        .mini-gallery .img-placeholder {
+            width: 80px;
+            height: 60px;
+            border-radius: 4px;
+            flex-shrink: 0;
+            font-size: 9px;
+        }
+
+        .rating-stars {
+            font-size: 14px;
+            color: #f57c00;
+            margin-left: 5px;
+        }
+        
+        /* --- Room List (inside Hotel) --- */
+        .room-list {
+            margin-top: 10px;
+            border-top: 1px dashed #ccc;
+            padding-top: 10px;
+        }
+        .room-list h5 {
+            font-size: 11px;
+            font-weight: 600;
+            color: #333;
+            margin: 0 0 5px 0;
+        }
+        .room-item {
+            font-size: 11px;
+            color: #555;
+            margin-bottom: 3px;
+            padding-left: 10px;
+        }
+        .room-item strong {
+            font-weight: 600;
+        }
+
+        /* --- Image Gallery --- */
+        .image-gallery {
+            margin-top: 30px;
+            /* Hint to start on a new page if it's tight */
+            page-break-before: auto;
+        }
+        .image-gallery h2 {
+            text-align: center;
+        }
+        .gallery-grid {
+            display: grid;
+            /* 3 columns */
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 10px;
+        }
+        .gallery-grid img {
+            width: 100%;
+            height: 150px;
+            object-fit: cover;
+            border-radius: 4px;
+            background: #eee;
+        }
+        
+        /* --- Terms & Notes --- */
+        .package-post-content {
+            margin-top: 30px;
+            page-break-before: auto;
+            page-break-after: always; /* Force page break after Terms & Conditions */
+        }
+
+        /* --- Footer (Document End) --- */
+        .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 2px solid #0d47a1;
+            text-align: center;
+            font-size: 11px;
+            color: #777;
+            /* Avoid footer being alone on a new page */
+            page-break-before: auto;
+        }
+        .footer p {
+            margin: 2px 0;
+        }
+        .footer .phone-email {
+            font-weight: 500;
+            color: #444;
+            margin-top: 5px;
+        }
+
+    </style>
+</head>
+<body>
+
+    <!-- ======== HEADER ======== -->
+    <div class="header">
+        <div class="company-logo">
+            <!-- Loop over logo images, but only show the first one -->
+            {% for logo in company_profile.images.logo %}
+                {% if forloop.first %}
+                <img src="{{ logo.image_url }}" alt="{{ company_profile.company_name }} Logo" class="logo" 
+                     onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                <!-- Fallback for broken image -->
+                <div class="img-placeholder" style="display:none; width: 160px; height: 75px;">
+                    Logo
+                </div>
+                {% endif %}
+            {% endfor %}
+        </div>
+        <div class="company-info">
+            <h1>{{ company_profile.company_name }}</h1>
+            <p>
+                {{ company_profile.address.line1 }},
+                {% if company_profile.address.line2 %}{{ company_profile.address.line2 }},{% endif %}
+                {{ company_profile.address.city }}, {{ company_profile.address.state }} - {{ company_profile.address.pincode }}
+            </p>
+        </div>
+    </div>
+
+    <!-- ======== DOCUMENT INFO ======== -->
+    <div class="doc-info">
+        <div><strong>Customer:</strong> {{ customer.name }}</div>
+        <div><strong>Lead ID:</strong> {{ lead.lead_id }}</div>
+        <div><strong>Email:</strong> {{ customer.email }}</div>
+        <div><strong>Lead Status:</strong> {{ lead.status }}</div>
+        <div><strong>Mobile:</strong> {{ customer.mobileno }}</div>
+        <div><strong>Package Price:</strong> {{ package.package_amount }}</div>
+        {% if customer.company %}
+        <div><strong>Company:</strong> {{ customer.company }}</div>
+        {% endif %}
+        <div><strong>PAX Size:</strong> {{ package.pax_size }}</div>
+        <div><strong>Date Issued:</strong> {{ generated_date }} {{ generated_time }}</div>
+        {% if created_by %}
+        <div><strong>Prepared By:</strong> {{ created_by.name }} ({{ created_by.email }})</div>
+        {% endif %}
+    </div>
+
+    <!-- ======== PACKAGE HEADER ======== -->
+    <div class="package-header">
+        <h1>{{ package.name }}</h1>
+        <div class="quick-facts">
+            {{ package.no_of_days }} Days Tour Package | {{ package.type|title }}
+        </div>
+    </div>
+
+    <!-- ======== HERO IMAGE (First image from package) ======== -->
+    {% for image in package.images %}
+        {% if forloop.first %}
+        <img src="{{ image.image_url }}" alt="{{ package.name }}" class="hero-image"
+             onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+        <!-- Fallback for broken image -->
+        <div class="img-placeholder" style="display:none; width: 100%; height: 280px; border-radius: 8px;">
+            Package Image
+        </div>
+        {% endif %}
+    {% endfor %}
+
+    <!-- ======== PACKAGE DESCRIPTION ======== -->
+    <div class="package-description">
+        <h2>Package Overview</h2>
+        <p>{{ package.description|safe }}</p> <!-- Use |safe if description contains HTML -->
+    </div>
+
+    <!-- ======== INCLUSIONS / EXCLUSIONS / AMENITIES / POLICIES ======== -->
+    <div class="package-lists">
+        {% if package.inclusions %}
+        <div class="list-box">
+            <h4>Inclusions</h4>
+            <ul>
+                {% for item in package.inclusions %}
+                <li>{{ item.name }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+        
+        {% if package.exclusions %}
+        <div class="list-box">
+            <h4>Exclusions</h4>
+            <ul>
+                {% for item in package.exclusions %}
+                <li>{{ item.name }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+
+        {% if package.amenities %}
+        <div class="list-box">
+            <h4>Amenities</h4>
+            <ul>
+                {% for item in package.amenities %}
+                <li>{{ item.name }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+
+        {% if package.policies %}
+        <div class="list-box">
+            <h4>Policies</h4>
+            <ul>
+                {% for item in package.policies %}
+                <li>{{ item.name }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+    </div>
+
+
+    <!-- ======== ITINERARY DETAILS ======== -->
+    <div class="itinerary-section">
+        <h2>Daily Itinerary</h2>
+
+        {% for day in package.itinerary_details %}
+    <div class="itinerary-day">
+        <div class="day-header">
+            <h3>Day {{ day.day }}: {{ day.title }}</h3>
+            <span class="location">{{ day.city }}, {{ day.state }}</span>
+        </div>
+        
+        <div class="day-description">
+            <p>{{ day.description|safe }}</p>
+            {% if day.note %}
+            <p><strong>Note:</strong> {{ day.note|safe }}</p>
+            {% endif %}
+        </div>
+
+        <!-- --- Hotel Details --- -->
+        {% if day.hotel_details %}
+        <div class="details-section">
+            <h4><span style="font-size: 1.2em; vertical-align: middle;">🏨</span> Hotel Details</h4>
+            {% for hotel in day.hotel_details %}
+            <div class="detail-item">
+                <!-- Hotel Image (show first one) -->
+                {% for image in hotel.images %}
+                    {% if forloop.first %}
+                    <img src="{{ image.image_url }}" alt="{{ hotel.name }}"
+                         onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                    <!-- Fallback -->
+                    <div class="img-placeholder" style="display:none;">Hotel Image</div>
+                    {% endif %}
+                {% endfor %}
+                
+                <div class="info">
+                    <strong>{{ hotel.name }}
+                        {% if hotel.rating %}
+                        <span class="rating-stars">
+                            <!-- Simple star rating logic -->
+                            {% if hotel.rating >= 1 %}★{% endif %}
+                            {% if hotel.rating >= 2 %}★{% endif %}
+                            {% if hotel.rating >= 3 %}★{% endif %}
+                            {% if hotel.rating >= 4 %}★{% endif %}
+                            {% if hotel.rating >= 5 %}★{% endif %}
+                        </span>
+                        {% endif %}
+                    </strong>
+                    <p>{{ hotel.location.address }}, {{ hotel.location.city }}</p>
+                    <p>{{ hotel.description|safe }}</p>
+                    
+                    <!-- NEW: Hotel Image Gallery -->
+                    {% if hotel.images|length > 1 %}
+                    <div class="mini-gallery">
+                        {% for image in hotel.images %}
+                            {% if not forloop.first %} <!-- Skip the first image (already shown) -->
+                            <img src="{{ image.image_url }}" alt="{{ hotel.name }} image"
+                                 onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                            <div class="img-placeholder" style="display:none;">img</div>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+
+                    <!-- Room Details -->
+                    {% if hotel.rooms %}
+                    <div class="room-list">
+                        <h5>Room Options:</h5>
+                        {% for room in hotel.rooms %}
+                        <div class="room-item">
+                            <div>
+                                <strong>{{ room.name }}</strong> ({{ room.type }}, {{ room.bedtype }}) - {{ room.price_per_night }}
+                            </div>
+                            <!-- NEW: Room Image Gallery -->
+                            {% if room.images %}
+                            <div class="mini-gallery" style="margin-top: 5px;">
+                                {% for image in room.images %}
+                                <img src="{{ image.image_url }}" alt="{{ room.name }} image"
+                                     onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                                <div class="img-placeholder" style="display:none;">img</div>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- --- Activity Details --- -->
+        {% if day.activities %}
+        <div class="details-section">
+            <h4><span style="font-size: 1.2em; vertical-align: middle;">🏞️</span> Activities</h4>
+            {% for activity in day.activities %}
+            <div class="detail-item">
+                <!-- Activity Image (show first one) -->
+                {% for image in activity.images %}
+                    {% if forloop.first %}
+                    <img src="{{ image.image_url }}" alt="{{ activity.name }}"
+                         onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                    <!-- Fallback -->
+                    <div class="img-placeholder" style="display:none;">Activity Image</div>
+                    {% endif %}
+                {% endfor %}
+                
+                <div class="info">
+                    <strong>{{ activity.name }}</strong>
+                    <p>{{ activity.description|safe }}</p>
+                    <p>Type: {{ activity.type }} | Charges: {{ activity.charges }}</p>
+                    <p>Location: {{ activity.location.address }}</p>
+
+                    <!-- NEW: Activity Image Gallery -->
+                    {% if activity.images|length > 1 %}
+                    <div class="mini-gallery">
+                        {% for image in activity.images %}
+                            {% if not forloop.first %} <!-- Skip the first image (already shown) -->
+                            <img src="{{ image.image_url }}" alt="{{ activity.name }} image"
+                                 onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                            <div class="img-placeholder" style="display:none;">img</div>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- --- Transport Details --- -->
+        {% if day.car_dealers %}
+        <div class="details-section">
+            <h4><span style="font-size: 1.2em; vertical-align: middle;">🚗</span> Transport</h4>
+            {% for car_dealer in day.car_dealers %}
+            <div class="detail-item">
+                <!-- Car Dealer Image (show first one) -->
+                {% for image in car_dealer.images %}
+                    {% if forloop.first %}
+                    <img src="{{ image.image_url }}" alt="{{ car_dealer.name }}"
+                         onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                    <!-- Fallback -->
+                    <div class="img-placeholder" style="display:none;">Vehicle Image</div>
+                    {% endif %}
+                {% endfor %}
+
+                <div class="info">
+                    <strong>{{ car_dealer.name }}</strong>
+                    <p>Contact: {{ car_dealer.contact_no }}</p>
+                    <p>Location: {{ car_dealer.location.address }}</p>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        </div>
+        {% endfor %} <!-- End of day loop -->
+    </div> <!-- End of itinerary-section -->
+
+
+    <!-- ======== PACKAGE IMAGE GALLERY ======== -->
+    {% if package.images|length > 1 %} <!-- Only show gallery if there's more than the hero image -->
+    <div class="image-gallery">
+        <h2>Package Gallery</h2>
+        <div class="gallery-grid">
+            {% for image in package.images %}
+            <img src="{{ image.image_url }}" alt="Package Gallery Image"
+                 onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+            <!-- Fallback -->
+            <div class="img-placeholder" style="display:none; height: 150px;">Image</div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ======== TERMS & NOTES ======== -->
+    <div class="package-post-content">
+        {% if package.terms_and_conditions %}
+        <div class="terms-section">
+            <h2>Terms & Conditions</h2>
+            <p>{{ package.terms_and_conditions|safe }}</p>
+        </div>
+        {% endif %}
+
+        {% if package.notes %}
+        <div class="notes-section" style="margin-top: 20px;">
+            <h2>Notes</h2>
+            <p>{{ package.notes|safe }}</p>
+        </div>
+        {% endif %}
+    </div>
+
+
+    <!-- ======== DOCUMENT FOOTER ======== -->
+    <div class="footer">
+        <h2>Thank You!</h2>
+        <p>{{ company_profile.company_name }}</p>
+        <p>
+            {{ company_profile.address.line1 }},
+            {% if company_profile.address.line2 %}{{ company_profile.address.line2 }},{% endif %}
+            {{ company_profile.address.city }}, {{ company_profile.address.state }} - {{ company_profile.address.pincode }}
+        </p>
+        <p class="phone-email">
+            Phone: {{ company_profile.phone_number }}
+            {% if company_profile.alternate_phone %}| Alt: {{ company_profile.alternate_phone }}{% endif %}
+            | Email: {{ company_profile.email }}
+            | Web: {{ company_profile.website }}
+        </p>
+    </div>
+
+</body>
+</html>z
