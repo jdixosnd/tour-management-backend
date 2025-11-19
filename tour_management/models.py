@@ -179,7 +179,8 @@ class Location(models.Model):
 
     class Meta:
         db_table = 'Location'
-        #unique_together = (('tour_operator', 'name','city', 'country'),)
+        # Note: Unique constraint is enforced via custom index in migration 0011
+        # to avoid MySQL key length limit (using prefix lengths on varchar fields)
 
 class Cardealer(models.Model):
     id = models.BigAutoField(primary_key=True)
@@ -243,6 +244,7 @@ class Destination(models.Model):
 
     class Meta:
         db_table = 'Destination'
+        unique_together = [['tour_operator_id', 'name']]
 
     def get_images(self):
         """Get all images associated with this destination."""

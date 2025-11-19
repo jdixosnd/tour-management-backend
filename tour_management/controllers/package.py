@@ -641,3 +641,85 @@ def update_package(request):
         except Exception as e:
             # logging.exception("An error occurred while updating the package.")
             return JsonResponse({"error": str(e)}, status=500)
+
+
+def delete_package(request):
+    """
+    Delete a package and all its related records.
+
+    Required fields:
+    - package_id: ID of the package to delete
+    - tour_operator_id: ID of the tour operator (for verification)
+
+    This will delete:
+    - Package record
+    - DestinationPackageMapping records
+    - Packageitineraryitem records
+    - PackageHotelMapping records
+    - PackageCarDealerMapping records
+
+    Note: Leads store package snapshots, so deleting a package won't affect existing leads.
+    """
+    if request.method != 'POST':
+        return JsonResponse({"error": "Only POST method is allowed"}, status=405)
+
+    try:
+        data = json.loads(request.body.decode("utf-8"))
+        required_keys = ["package_id", "tour_operator_id"]
+        missing_keys = set(required_keys) - data.keys()
+
+        if missing_keys:
+            return JsonResponse(
+                {"error": ",".join(missing_keys) + " is/are required fields."},
+                status=400
+            )
+
+        package_id = data['package_id']
+        tour_operator_id = data['tour_operator_id']
+
+        # Get the package and verify it belongs to the tour operator
+        try:
+            package = Package.objects.get(id=package_id)
+        except Package.DoesNotExist:
+            return JsonResponse(
+                {"error": "Package not found."},
+                status=404
+            )
+
+        if package.tour_operator.id != tour_operator_id:
+            return JsonResponse(
+                {"error": "Package does not belong to the specified tour operator."},
+                status=403
+            )
+
+        # Use transaction to ensure all deletes happen atomically
+        with transaction.atomic():
+            # Delete all related records
+            # Delete destination mappings
+            DestinationPackageMapping.objects.filter(package_id=package).delete()
+
+            # Delete itinerary items
+            Packageitineraryitem.objects.filter(package=package).delete()
+
+            # Delete hotel mappings
+            PackageHotelMapping.objects.filter(package=package).delete()
+
+            # Delete car dealer mappings
+            PackageCarDealerMapping.objects.filter(package=package).delete()
+
+            # Delete the package itself
+            package_name = package.name
+            package.delete()
+
+        return JsonResponse(
+            {
+                "success": f"Package '{package_name}' deleted successfully.",
+                "deleted_id": package_id
+            },
+            status=200
+        )
+
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "Invalid JSON in request body"}, status=400)
+    except Exception as e:
+        return JsonResponse({"error": f"An error occurred: {str(e)}"}, status=500)

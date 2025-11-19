@@ -525,3 +525,70 @@ def update_booking(request):
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
 
+
+def delete_booking(request):
+    """
+    Delete a booking (transaction) and all its related records.
+
+    Required fields:
+    - transaction_id: ID of the transaction to delete
+    - tour_operator_id: ID of the tour operator (for verification)
+
+    This will delete:
+    - Transaction record
+    - TransactionItineraryItem records
+    """
+    if request.method != 'POST':
+        return JsonResponse({"error": "Only POST method is allowed"}, status=405)
+
+    try:
+        data = json.loads(request.body.decode("utf-8"))
+        required_keys = ["transaction_id", "tour_operator_id"]
+        missing_keys = set(required_keys) - data.keys()
+
+        if missing_keys:
+            return JsonResponse(
+                {"error": ",".join(missing_keys) + " is/are required fields."},
+                status=400
+            )
+
+        transaction_id = data['transaction_id']
+        tour_operator_id = data['tour_operator_id']
+
+        # Get the transaction and verify it belongs to the tour operator
+        try:
+            booking = Transaction.objects.get(id=transaction_id)
+        except Transaction.DoesNotExist:
+            return JsonResponse(
+                {"error": "Booking not found."},
+                status=404
+            )
+
+        if booking.tour_operator.id != tour_operator_id:
+            return JsonResponse(
+                {"error": "Booking does not belong to the specified tour operator."},
+                status=403
+            )
+
+        # Use transaction to ensure all deletes happen atomically
+        with transaction.atomic():
+            # Delete all itinerary items for this booking
+            TransactionItineraryItem.objects.filter(transaction=booking).delete()
+
+            # Delete the booking itself
+            customer_name = booking.customer.name if booking.customer else "Unknown"
+            package_name = booking.package_name
+            booking.delete()
+
+        return JsonResponse(
+            {
+                "success": f"Booking for customer '{customer_name}' (Package: {package_name}) deleted successfully.",
+                "deleted_id": transaction_id
+            },
+            status=200
+        )
+
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "Invalid JSON in request body"}, status=400)
+    except Exception as e:
+        return JsonResponse({"error": f"An error occurred: {str(e)}"}, status=500)

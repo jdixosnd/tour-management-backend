@@ -1,7 +1,7 @@
 from __future__ import unicode_literals
 from django.http import HttpResponse, HttpResponseBadRequest
 import json
-from ..models import User, Touroperator, Location, Hotel, Room, Amenity, Inclusion, Exclusion, Policy, ImageMetadata, Package, Destination, Cardealer, Event, SightSeeing
+from ..models import User, Touroperator, Location, Hotel, Room, Amenity, Inclusion, Exclusion, Policy, ImageMetadata, Package, Destination, Cardealer, Event, SightSeeing, LeadHotelMapping, PackageHotelMapping
 from django.core.exceptions import ValidationError
 from django.core import serializers
 from django.http import JsonResponse
@@ -138,8 +138,8 @@ def add_hotel(request):
                         "city": location.city,
                         "state": location.state,
                         "country": location.country,
-                        "lat": float(location.lat),
-                        "lng": float(location.lng)
+                        "lat": float(location.lat) if location.lat else None,
+                        "lng":  float(location.lng) if location.lng else None
                     },
                     "amenities": hotel_amenities,
                     "inclusions": hotel_inclusions,
@@ -337,8 +337,8 @@ def update_hotel(request):
                         "city": location.city,
                         "state": location.state,
                         "country": location.country,
-                        "lat": float(location.lat),
-                        "lng": float(location.lng)
+                        "lat": float(location.lat) if location.lat else None,
+                        "lng":  float(location.lng) if location.lng else None
                     },
                     "amenities": hotel_amenities,
                     "inclusions": hotel_inclusions,
@@ -587,8 +587,8 @@ def get_hotels(request):
                         "city": location.city,
                         "state": location.state,
                         "country": location.country,
-                        "lat": float(location.lat),
-                        "lng": float(location.lng),
+                        "lat": float(location.lat) if location.lat else None,
+                        "lng":  float(location.lng) if location.lng else None
                     },
                     "amenities": hotel_amenities,
                     "inclusions": hotel_inclusions,
@@ -671,8 +671,8 @@ def get_hotel_by_id(hotel_id, include_binary=False):
                 "city": location.city,
                 "state": location.state,
                 "country": location.country,
-                "lat": float(location.lat),
-                "lng": float(location.lng),
+                "lat": float(location.lat) if location.lat else None,
+                "lng":  float(location.lng) if location.lng else None
             },
             "amenities": hotel_amenities,
             "inclusions": hotel_inclusions,
@@ -804,3 +804,87 @@ def get_rooms_from_db(hotel_id, include_binary=False):
         }
         rooms.append(room_data)
     return rooms
+
+
+def delete_hotel(request):
+    """
+    Delete a hotel if it's not referenced by any leads or packages.
+
+    Required fields:
+    - id: ID of the hotel to delete
+    - tour_operator_id: ID of the tour operator (for verification)
+    """
+    if request.method != 'POST':
+        return JsonResponse({"error": "Only POST method is allowed"}, status=405)
+
+    data = json.loads(request.body.decode("utf-8"))
+    required_keys = ["id", "tour_operator_id"]
+    missing_keys = set(required_keys) - data.keys()
+
+    if missing_keys:
+        return JsonResponse(
+            {"error": ",".join(missing_keys) + " is/are required fields."},
+            status=400
+        )
+
+    hotel_id = data['id']
+    tour_operator_id = data['tour_operator_id']
+
+    try:
+        # Get the hotel and verify it belongs to the tour operator
+        hotel = Hotel.objects.get(id=hotel_id)
+
+        if hotel.tour_operator.id != tour_operator_id:
+            return JsonResponse(
+                {"error": "Hotel does not belong to the specified tour operator."},
+                status=403
+            )
+
+        # Check if hotel is referenced by any leads
+        lead_count = LeadHotelMapping.objects.filter(hotel=hotel).count()
+        if lead_count > 0:
+            return JsonResponse(
+                {
+                    "error": f"Cannot delete hotel. It is referenced by {lead_count} lead(s).",
+                    "referenced_by": "leads",
+                    "count": lead_count
+                },
+                status=409
+            )
+
+        # Check if hotel is referenced by any packages
+        package_count = PackageHotelMapping.objects.filter(hotel=hotel).count()
+        if package_count > 0:
+            return JsonResponse(
+                {
+                    "error": f"Cannot delete hotel. It is referenced by {package_count} package(s).",
+                    "referenced_by": "packages",
+                    "count": package_count
+                },
+                status=409
+            )
+
+        # Store hotel name for response message
+        hotel_name = hotel.name
+
+        # If no references, delete the hotel (rooms will be cascade deleted)
+        hotel.delete()
+
+        return JsonResponse(
+            {
+                "success": f"Hotel '{hotel_name}' deleted successfully.",
+                "deleted_id": hotel_id
+            },
+            status=200
+        )
+
+    except Hotel.DoesNotExist:
+        return JsonResponse(
+            {"error": "Hotel not found."},
+            status=404
+        )
+    except Exception as e:
+        return JsonResponse(
+            {"error": f"An error occurred: {str(e)}"},
+            status=500
+        )

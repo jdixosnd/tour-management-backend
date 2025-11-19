@@ -13,7 +13,8 @@ from django.db import transaction
 from ..models import (
     Lead, LeadPackage, LeadDestinationMapping, LeadItineraryItem, LeadHotelMapping,
     LeadCarDealerMapping, Customer, Touroperator, User, Destination,
-    Hotel, Cardealer, Inclusion, Exclusion, Event, SightSeeing, Location, Itineraryitem
+    Hotel, Cardealer, Inclusion, Exclusion, Event, SightSeeing, Location, Itineraryitem,
+    Transaction
 )
 
 def get_city_state_from_day(data,day):
@@ -743,3 +744,106 @@ def add_lead(request):
             return JsonResponse({"error": str(e)}, status=500)
 
     return JsonResponse({"error": "Invalid request method"}, status=405)
+
+
+def delete_lead(request):
+    """
+    Delete a lead and all its related records.
+
+    Required fields:
+    - lead_id: ID of the lead to delete
+    - tour_operator_id: ID of the tour operator (for verification)
+
+    This will delete:
+    - Lead record
+    - LeadPackage records
+    - LeadDestinationMapping records
+    - LeadItineraryItem records
+    - LeadHotelMapping records
+    - LeadCarDealerMapping records
+
+    Cannot delete if:
+    - Lead is referenced by any Transaction (booking)
+    """
+    if request.method != 'POST':
+        return JsonResponse({"error": "Only POST method is allowed"}, status=405)
+
+    try:
+        data = json.loads(request.body.decode("utf-8"))
+        required_keys = ["lead_id", "tour_operator_id"]
+        missing_keys = set(required_keys) - data.keys()
+
+        if missing_keys:
+            return JsonResponse(
+                {"error": ",".join(missing_keys) + " is/are required fields."},
+                status=400
+            )
+
+        lead_id = data['lead_id']
+        tour_operator_id = data['tour_operator_id']
+
+        # Get the lead and verify it belongs to the tour operator
+        try:
+            lead = Lead.objects.get(id=lead_id)
+        except Lead.DoesNotExist:
+            return JsonResponse(
+                {"error": "Lead not found."},
+                status=404
+            )
+
+        if lead.tour_operator.id != tour_operator_id:
+            return JsonResponse(
+                {"error": "Lead does not belong to the specified tour operator."},
+                status=403
+            )
+
+        # Check if lead is referenced by any transactions (bookings)
+        transaction_count = Transaction.objects.filter(lead=lead).count()
+        if transaction_count > 0:
+            return JsonResponse(
+                {
+                    "error": f"Cannot delete lead. It is referenced by {transaction_count} booking(s).",
+                    "referenced_by": "transactions",
+                    "count": transaction_count
+                },
+                status=409
+            )
+
+        # Get all lead packages for this lead
+        lead_packages = LeadPackage.objects.filter(lead=lead)
+
+        # Use transaction to ensure all deletes happen atomically
+        with transaction.atomic():
+            # Delete all related records for each lead package
+            for lead_package in lead_packages:
+                # Delete destination mappings
+                LeadDestinationMapping.objects.filter(lead_package=lead_package).delete()
+
+                # Delete itinerary items
+                LeadItineraryItem.objects.filter(lead_package=lead_package).delete()
+
+                # Delete hotel mappings
+                LeadHotelMapping.objects.filter(lead_package=lead_package).delete()
+
+                # Delete car dealer mappings
+                LeadCarDealerMapping.objects.filter(lead_package=lead_package).delete()
+
+                # Delete the lead package itself
+                lead_package.delete()
+
+            # Finally, delete the lead
+            customer_name = lead.customer.name if lead.customer else "Unknown"
+            lead.delete()
+
+        return JsonResponse(
+            {
+                "success": f"Lead for customer '{customer_name}' deleted successfully.",
+                "deleted_id": lead_id
+            },
+            status=200
+        )
+
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "Invalid JSON in request body"}, status=400)
+    except Exception as e:
+        return JsonResponse({"error": f"An error occurred: {str(e)}"}, status=500)

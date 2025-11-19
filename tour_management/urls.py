@@ -41,6 +41,7 @@ urlpatterns = [
         path('hotel/room/add/',hotel.add_rooms,name='add_rooms'),
         path('hotel/room/get/',hotel.get_rooms,name='get_rooms'),
         path('hotel/update/',hotel.update_hotel,name='update_hotel'),
+        path('hotel/delete/',hotel.delete_hotel,name='delete_hotel'),
 
         path('cardealer/add/', cardealer.add_cardealer, name='add_cardealer'),
         path('cardealer/get/', cardealer.get_cardealer, name='get_cardealer'),
@@ -62,6 +63,7 @@ urlpatterns = [
         path('packages_from_destination/get/',package.get_packages_from_destination,name='get_packages_from_destination'),
         path('package/get/', package.get_package, name='get_package'),
         path('package/update/', package.update_package, name='update_package'),
+        path('package/delete/', package.delete_package, name='delete_package'),
 
         path('transaction/add/',transaction.add_transaction, name='add_transaction'),
         path('transaction/get/',transaction.get_transaction, name='get_transaction'),
@@ -71,6 +73,7 @@ urlpatterns = [
         path('lead/get/',lead.get_lead,name='get_lead'),
         path('lead/get_all/',lead.get_all_leads,name='get_all_leads'),
         path('lead/update/',lead.update_lead,name='update_lead'),
+        path('lead/delete/',lead.delete_lead,name='delete_lead'),
         path('lead/generate_pdf/',lead_pdf.generate_lead_pdf_api,name='generate_lead_pdf'),
 
         # New Booking APIs (working with Lead-based system)
@@ -78,6 +81,7 @@ urlpatterns = [
         path('booking/get/', booking.get_booking, name='get_booking'),
         path('booking/get_all/', booking.get_all_bookings, name='get_all_bookings'),
         path('booking/update/', booking.update_booking, name='update_booking'),
+        path('booking/delete/', booking.delete_booking, name='delete_booking'),
 
         path('customer/add/', customer.add_customer, name='add_customer'),
         path('customer/get/', customer.get_customers, name='get_customers'),
