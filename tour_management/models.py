@@ -571,6 +571,49 @@ class PackageCarDealerMapping(models.Model):
         #unique_together = ('package', 'car_dealer', 'tour_operator')
 
 
+class PackageOption(models.Model):
+    """
+    Represents different pricing/hotel options for a package (e.g., Standard, Deluxe, Premium).
+    Each option has its own price and hotel selections for each day.
+    """
+    id = models.BigAutoField(primary_key=True)
+    package = models.ForeignKey(Package, related_name='options', on_delete=models.CASCADE)
+    name = models.CharField(max_length=100)  # e.g., 'Standard', 'Deluxe', 'Premium'
+    amount = models.DecimalField(max_digits=15, decimal_places=2)  # Price for this option
+    description = models.TextField(blank=True, null=True)  # Optional description
+    tour_operator = models.ForeignKey(Touroperator, on_delete=models.CASCADE, blank=True, null=True)
+    created_by = models.ForeignKey(User, on_delete=models.CASCADE, blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'PackageOption'
+        ordering = ['id']
+
+    def __str__(self):
+        return f"{self.package.name} - {self.name} (₹{self.amount})"
+
+
+class PackageOptionHotelMapping(models.Model):
+    """
+    Maps hotels to specific days for each package option.
+    This allows different options to have different hotel selections for the same day.
+    """
+    id = models.BigAutoField(primary_key=True)
+    package_option = models.ForeignKey(PackageOption, related_name='hotel_mappings', on_delete=models.CASCADE)
+    hotel = models.ForeignKey(Hotel, on_delete=models.CASCADE)
+    day = models.IntegerField()  # Day number matching the itinerary
+    tour_operator = models.ForeignKey(Touroperator, on_delete=models.CASCADE, blank=True, null=True)
+    selected_by = models.ForeignKey(User, on_delete=models.CASCADE, blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'PackageOptionHotelMapping'
+        ordering = ['day', 'id']
+
+    def __str__(self):
+        return f"{self.package_option.name} - Day {self.day} - {self.hotel.name}"
+
 
 class Customer(models.Model):
     id = models.BigAutoField(primary_key=True)

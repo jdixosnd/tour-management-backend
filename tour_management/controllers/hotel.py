@@ -1,7 +1,7 @@
 from __future__ import unicode_literals
 from django.http import HttpResponse, HttpResponseBadRequest
 import json
-from ..models import User, Touroperator, Location, Hotel, Room, Amenity, Inclusion, Exclusion, Policy, ImageMetadata, Package, Destination, Cardealer, Event, SightSeeing, LeadHotelMapping, PackageHotelMapping
+from ..models import User, Touroperator, Location, Hotel, Room, Amenity, Inclusion, Exclusion, Policy, ImageMetadata, Package, Destination, Cardealer, Event, SightSeeing, LeadHotelMapping, PackageHotelMapping, PackageOptionHotelMapping
 from django.core.exceptions import ValidationError
 from django.core import serializers
 from django.http import JsonResponse
@@ -860,6 +860,18 @@ def delete_hotel(request):
                     "error": f"Cannot delete hotel. It is referenced by {package_count} package(s).",
                     "referenced_by": "packages",
                     "count": package_count
+                },
+                status=409
+            )
+
+        # Check if hotel is referenced by any package options
+        package_option_count = PackageOptionHotelMapping.objects.filter(hotel=hotel).count()
+        if package_option_count > 0:
+            return JsonResponse(
+                {
+                    "error": f"Cannot delete hotel. It is referenced by {package_option_count} package option(s).",
+                    "referenced_by": "package_options",
+                    "count": package_option_count
                 },
                 status=409
             )

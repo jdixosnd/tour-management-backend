@@ -187,6 +187,27 @@ class PackageCarDealerMappingAdmin(admin.ModelAdmin):
     search_fields = ('package__name', 'car_dealer__name')
     list_filter = ('tour_operator', 'day')
 
+@admin.register(PackageOption)
+class PackageOptionAdmin(admin.ModelAdmin):
+    list_display = ('id', 'package', 'name', 'amount', 'tour_operator', 'created_at')
+    search_fields = ('name', 'package__name')
+    list_filter = ('tour_operator', 'created_at')
+    readonly_fields = ('created_at', 'updated_at')
+    fieldsets = (
+        ('Option Details', {
+            'fields': ('package', 'name', 'amount', 'description')
+        }),
+        ('Metadata', {
+            'fields': ('tour_operator', 'created_by', 'created_at', 'updated_at')
+        })
+    )
+
+@admin.register(PackageOptionHotelMapping)
+class PackageOptionHotelMappingAdmin(admin.ModelAdmin):
+    list_display = ('id', 'package_option', 'hotel', 'day', 'tour_operator', 'selected_by')
+    search_fields = ('package_option__name', 'hotel__name')
+    list_filter = ('tour_operator', 'day')
+    readonly_fields = ('created_at',)
 
 @admin.register(CompanyProfile)
 class CompanyProfileAdmin(admin.ModelAdmin):

@@ -1,7 +1,7 @@
 from __future__ import unicode_literals
 from django.http import HttpResponse, HttpResponseBadRequest
 import json
-from ..models import User, Touroperator,Destination, Location, PackageCarDealerMapping,Itineraryitem, PackageHotelMapping, Package, Event, SightSeeing, Packageitineraryitem, DestinationPackageMapping, Hotel, Cardealer, Inclusion, Exclusion, ImageMetadata
+from ..models import User, Touroperator,Destination, Location, PackageCarDealerMapping,Itineraryitem, PackageHotelMapping, Package, Event, SightSeeing, Packageitineraryitem, DestinationPackageMapping, Hotel, Cardealer, Inclusion, Exclusion, ImageMetadata, PackageOption, PackageOptionHotelMapping
 from django.core.exceptions import ValidationError
 from django.contrib.auth.hashers import make_password, check_password
 from django.core import serializers
@@ -40,6 +40,36 @@ def get_packages_from_destination(request):
             # Get package images
             package_images = get_images('package', package.id, include_binary=False)
 
+            # Get package options with hotel mappings
+            package_options_data = []
+            package_options = PackageOption.objects.filter(package=package).order_by('id')
+            for option in package_options:
+                # Get hotel mappings for this option, grouped by day
+                hotel_mappings_data = []
+                hotel_mappings = PackageOptionHotelMapping.objects.filter(
+                    package_option=option
+                ).select_related('hotel').order_by('day')
+
+                # Group hotels by day
+                day_hotel_map = defaultdict(list)
+                for mapping in hotel_mappings:
+                    day_hotel_map[mapping.day].append(mapping.hotel.id)
+
+                # Convert to the required format
+                for day, hotel_ids in sorted(day_hotel_map.items()):
+                    hotel_mappings_data.append({
+                        "day": day,
+                        "hotel_ids": hotel_ids
+                    })
+
+                package_options_data.append({
+                    "id": option.id,
+                    "name": option.name,
+                    "amount": float(option.amount),
+                    "description": option.description,
+                    "hotel_mappings": hotel_mappings_data
+                })
+
             result.append({
                 "id": package.id,
                 "name": package.name,
@@ -53,7 +83,8 @@ def get_packages_from_destination(request):
                 "is_active": package.is_active,
                 "type": package.type,
                 "terms_and_conditions": package.terms_and_conditions,
-                "images": package_images
+                "images": package_images,
+                "package_options": package_options_data
             })
         return JsonResponse({"data":result,"pagination": {
                 "count": paginator.page.paginator.count,
@@ -217,6 +248,36 @@ def get_package(request):
             # Get package images
             package_images = get_images('package', package.id, include_binary=False)
 
+            # Get package options with hotel mappings
+            package_options_data = []
+            package_options = PackageOption.objects.filter(package=package).order_by('id')
+            for option in package_options:
+                # Get hotel mappings for this option, grouped by day
+                hotel_mappings_data = []
+                hotel_mappings = PackageOptionHotelMapping.objects.filter(
+                    package_option=option
+                ).select_related('hotel').order_by('day')
+
+                # Group hotels by day
+                day_hotel_map = defaultdict(list)
+                for mapping in hotel_mappings:
+                    day_hotel_map[mapping.day].append(mapping.hotel.id)
+
+                # Convert to the required format
+                for day, hotel_ids in sorted(day_hotel_map.items()):
+                    hotel_mappings_data.append({
+                        "day": day,
+                        "hotel_ids": hotel_ids
+                    })
+
+                package_options_data.append({
+                    "id": option.id,
+                    "name": option.name,
+                    "amount": float(option.amount),
+                    "description": option.description,
+                    "hotel_mappings": hotel_mappings_data
+                })
+
             # Structure final package data
             package_data = {
                 "id": package.id,
@@ -235,7 +296,8 @@ def get_package(request):
                 "itinerary_details": day_wise_details,
                 "inclusions": package_inclusions,
                 "exclusions": package_exclusions,
-                "images": package_images
+                "images": package_images,
+                "package_options": package_options_data
             }
             result.append(package_data)
 
@@ -438,11 +500,37 @@ def add_package(request):
                             type_id=package.id
                         )
 
+                # Add Package Options (if provided)
+                if "package_options" in data and data['package_options']:
+                    for option_data in data['package_options']:
+                        # Create the package option
+                        package_option = PackageOption.objects.create(
+                            package=package,
+                            name=option_data['name'],
+                            amount=option_data['amount'],
+                            description=option_data.get('description', ''),
+                            tour_operator=tour_operator,
+                            created_by=created_by
+                        )
+
+                        # Add hotel mappings for this option
+                        for hotel_mapping in option_data.get('hotel_mappings', []):
+                            day = hotel_mapping['day']
+                            for hotel_id in hotel_mapping.get('hotel_ids', []):
+                                hotel = Hotel.objects.get(id=hotel_id)
+                                PackageOptionHotelMapping.objects.create(
+                                    package_option=package_option,
+                                    hotel=hotel,
+                                    day=day,
+                                    tour_operator=tour_operator,
+                                    selected_by=created_by
+                                )
+
                 # Success response with package ID and summary
                 return JsonResponse({
                     "message": "Package created successfully",
                     "package_id": package.id
-                   
+
                 }, status=201)
 
         except Touroperator.DoesNotExist:
@@ -619,6 +707,36 @@ def update_package(request):
                             type="package",
                             type_id=package.id
                         )
+
+                # Update Package Options (if provided)
+                if "package_options" in data:
+                    # Delete existing package options and their hotel mappings
+                    PackageOption.objects.filter(package=package).delete()
+
+                    # Create new package options
+                    for option_data in data['package_options']:
+                        # Create the package option
+                        package_option = PackageOption.objects.create(
+                            package=package,
+                            name=option_data['name'],
+                            amount=option_data['amount'],
+                            description=option_data.get('description', ''),
+                            tour_operator=tour_operator,
+                            created_by=created_by
+                        )
+
+                        # Add hotel mappings for this option
+                        for hotel_mapping in option_data.get('hotel_mappings', []):
+                            day = hotel_mapping['day']
+                            for hotel_id in hotel_mapping.get('hotel_ids', []):
+                                hotel = Hotel.objects.get(id=hotel_id)
+                                PackageOptionHotelMapping.objects.create(
+                                    package_option=package_option,
+                                    hotel=hotel,
+                                    day=day,
+                                    tour_operator=tour_operator,
+                                    selected_by=created_by
+                                )
 
                 # Success response with package ID and summary
                 return JsonResponse({
