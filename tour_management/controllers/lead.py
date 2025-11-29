@@ -12,8 +12,9 @@ from collections import defaultdict
 from django.db import transaction
 from ..models import (
     Lead, LeadPackage, LeadDestinationMapping, LeadItineraryItem, LeadHotelMapping,
-    LeadCarDealerMapping, Customer, Touroperator, User, Destination,
-    Hotel, Cardealer, Inclusion, Exclusion, Event, SightSeeing, Location, Itineraryitem,
+    LeadCarDealerMapping, LeadPackageOption, LeadPackageOptionHotelMapping, LeadPackageOptionCarDealerMapping,
+    Customer, Touroperator, User, Destination,
+    Hotel, Room, Cardealer, QuickHotel, Inclusion, Exclusion, Event, SightSeeing, Location, Itineraryitem,
     Transaction
 )
 
@@ -175,6 +176,50 @@ def get_lead(request):
                     "car_dealers": cardealer_details
                 })
 
+            # Get package options with hotel mappings
+            package_options_data = []
+            lead_package_options = LeadPackageOption.objects.filter(lead_package=lead_package).order_by('id')
+            for option in lead_package_options:
+                # Get hotel mappings for this option, grouped by day
+                hotel_mappings_data = []
+                hotel_mappings = LeadPackageOptionHotelMapping.objects.filter(
+                    lead_package_option=option
+                ).select_related('hotel', 'selected_room_type').order_by('day')
+
+                # Group hotels and quick hotels by day
+                day_hotel_map = defaultdict(lambda: {"hotel_ids": [], "quick_hotels": []})
+                for mapping in hotel_mappings:
+                    if mapping.hotel:
+                        # Include room selection details
+                        hotel_data = {
+                            "hotel_id": mapping.hotel.id,
+                            "selected_room_type_id": mapping.selected_room_type.id if mapping.selected_room_type else None,
+                            "room_quantity": mapping.room_quantity
+                        }
+                        # Include room snapshot if available
+                        if mapping.room_snapshot:
+                            hotel_data["selected_room_type"] = mapping.room_snapshot
+                        day_hotel_map[mapping.day]["hotel_ids"].append(hotel_data)
+                    elif mapping.quick_hotel_data:
+                        day_hotel_map[mapping.day]["quick_hotels"].append(mapping.quick_hotel_data)
+
+                # Convert to the required format
+                for day in sorted(day_hotel_map.keys()):
+                    hotel_mappings_data.append({
+                        "day": day,
+                        "hotel_ids": day_hotel_map[day]["hotel_ids"],
+                        "quick_hotels": day_hotel_map[day]["quick_hotels"]
+                    })
+
+                package_options_data.append({
+                    "id": option.id,
+                    "name": option.name,
+                    "amount": float(option.amount),
+                    "description": option.description,
+                    "vehicle_type": option.vehicle_type,
+                    "hotel_mappings": hotel_mappings_data
+                })
+
             # Structure final lead package data (matching package API response format)
             lead_package_data = {
                 "id": lead_package.id,
@@ -193,7 +238,8 @@ def get_lead(request):
                 "exclusions": lead_package.package_exclusions or [],
                 "images": lead_package.package_images or [],
                 "amenities": lead_package.package_amenities or [],
-                "policies": lead_package.package_policies or []
+                "policies": lead_package.package_policies or [],
+                "package_options": package_options_data
             }
 
             # Include lead metadata
@@ -208,6 +254,8 @@ def get_lead(request):
                 },
                 "status": lead.status,
                 "created_at": lead.created_at.isoformat() if lead.created_at else None,
+                "travel_start_date": lead.travel_start_date.isoformat() if lead.travel_start_date else None,
+                "travel_end_date": lead.travel_end_date.isoformat() if lead.travel_end_date else None,
                 "package": lead_package_data
             }
 
@@ -302,6 +350,8 @@ def get_all_leads(request):
                     "lead_id": lead.id,
                     "status": lead.status,
                     "created_at": lead.created_at.isoformat() if lead.created_at else None,
+                    "travel_start_date": lead.travel_start_date.isoformat() if lead.travel_start_date else None,
+                    "travel_end_date": lead.travel_end_date.isoformat() if lead.travel_end_date else None,
                     "customer": {
                         "id": lead.customer.id,
                         "name": lead.customer.name,
@@ -379,10 +429,14 @@ def update_lead(request):
                 # Get package snapshot
                 pkg_snapshot = data['package_snapshot']
 
-                # Update lead status if provided
+                # Update lead status and travel dates if provided
                 if 'status' in data:
                     lead_package.lead.status = data['status']
-                    lead_package.lead.save()
+                if 'travel_start_date' in data:
+                    lead_package.lead.travel_start_date = data['travel_start_date']
+                if 'travel_end_date' in data:
+                    lead_package.lead.travel_end_date = data['travel_end_date']
+                lead_package.lead.save()
 
                 # Update LeadPackage basic fields
                 lead_package.name = pkg_snapshot.get('name', lead_package.name)
@@ -443,11 +497,12 @@ def update_lead(request):
                     # Process activities for this day
                     activities = day_data.get('activities', [])
                     for activity in activities:
-                        item_type = activity.get('type', '').lower()
+                        # Default to 'event' type if not specified
+                        item_type = activity.get('type', 'event').lower()
                         item_name = activity.get('name', '')
                         item_description = activity.get('description', '')
-                        contact_no = activity.get('contact_no', '')
-                        charges = float(activity.get('charges', 0.0))
+                        contact_no = activity.get('contact_no', None)
+                        charges = float(activity['charges']) if activity.get('charges') is not None else None
                         sequence = activity.get('sequence', 0)
 
                         # Location management
@@ -526,6 +581,73 @@ def update_lead(request):
                                 selected_by=created_by
                             )
 
+                # Update Package Options (if provided in snapshot)
+                if "package_options" in pkg_snapshot:
+                    # Delete existing package option hotel mappings first (to avoid protected foreign key error)
+                    existing_options = LeadPackageOption.objects.filter(lead_package=lead_package)
+                    for option in existing_options:
+                        LeadPackageOptionHotelMapping.objects.filter(lead_package_option=option).delete()
+
+                    # Now delete the package options
+                    existing_options.delete()
+
+                    # Create new package options
+                    for option_data in pkg_snapshot['package_options']:
+                        # Create the lead package option
+                        lead_package_option = LeadPackageOption.objects.create(
+                            lead_package=lead_package,
+                            name=option_data['name'],
+                            amount=option_data['amount'],
+                            description=option_data.get('description', ''),
+                            vehicle_type=option_data.get('vehicle_type', ''),
+                            tour_operator=tour_operator,
+                            created_by=created_by
+                        )
+
+                        # Add hotel mappings for this option
+                        for hotel_mapping in option_data.get('hotel_mappings', []):
+                            day = hotel_mapping['day']
+
+                            # Handle regular hotel IDs with room selections
+                            hotel_ids_data = hotel_mapping.get('hotel_ids', [])
+                            for hotel_data in hotel_ids_data:
+                                if isinstance(hotel_data, dict):
+                                    # New format: {"hotel_id": 1, "selected_room_type_id": 5, "room_quantity": 2, "selected_room_type": {...}}
+                                    hotel_id = hotel_data.get('hotel_id')
+                                    selected_room_type_id = hotel_data.get('selected_room_type_id')
+                                    room_quantity = hotel_data.get('room_quantity')
+                                    room_snapshot = hotel_data.get('selected_room_type')
+                                else:
+                                    # Old format: just hotel ID
+                                    hotel_id = hotel_data
+                                    selected_room_type_id = None
+                                    room_quantity = None
+                                    room_snapshot = None
+
+                                hotel = Hotel.objects.get(id=hotel_id)
+                                selected_room = Room.objects.get(id=selected_room_type_id) if selected_room_type_id else None
+
+                                LeadPackageOptionHotelMapping.objects.create(
+                                    lead_package_option=lead_package_option,
+                                    hotel=hotel,
+                                    selected_room_type=selected_room,
+                                    room_quantity=room_quantity,
+                                    room_snapshot=room_snapshot,
+                                    day=day,
+                                    tour_operator=tour_operator,
+                                    selected_by=created_by
+                                )
+
+                            # Handle quick hotel data
+                            for quick_hotel_data in hotel_mapping.get('quick_hotels', []):
+                                LeadPackageOptionHotelMapping.objects.create(
+                                    lead_package_option=lead_package_option,
+                                    quick_hotel_data=quick_hotel_data,
+                                    day=day,
+                                    tour_operator=tour_operator,
+                                    selected_by=created_by
+                                )
+
                 # Response after successful update
                 return JsonResponse({
                     "message": "Lead updated successfully",
@@ -584,7 +706,9 @@ def add_lead(request):
                     customer=customer,
                     tour_operator=tour_operator,
                     created_by=created_by,
-                    status=data.get("status", "new")  # Default to 'new' status
+                    status=data.get("status", "new"),  # Default to 'new' status
+                    travel_start_date=data.get("travel_start_date"),
+                    travel_end_date=data.get("travel_end_date")
                 )
 
                 # Create LeadPackage with snapshot data
@@ -638,11 +762,12 @@ def add_lead(request):
                     # Process activities for this day
                     activities = day_data.get('activities', [])
                     for activity in activities:
-                        item_type = activity.get('type', '').lower()
+                        # Default to 'event' type if not specified
+                        item_type = activity.get('type', 'event').lower()
                         item_name = activity.get('name', '')
                         item_description = activity.get('description', '')
-                        contact_no = activity.get('contact_no', '')
-                        charges = float(activity.get('charges', 0.0))
+                        contact_no = activity.get('contact_no', None)
+                        charges = float(activity['charges']) if activity.get('charges') is not None else None
                         sequence = activity.get('sequence', 0)
 
                         # Location management
@@ -720,6 +845,66 @@ def add_lead(request):
                                 day=day,
                                 selected_by=created_by
                             )
+
+                # Add Package Options (if provided in snapshot)
+                if "package_options" in pkg_snapshot and pkg_snapshot['package_options']:
+                    for option_data in pkg_snapshot['package_options']:
+                        # Create the lead package option
+                        lead_package_option = LeadPackageOption.objects.create(
+                            lead_package=lead_package,
+                            name=option_data['name'],
+                            amount=option_data['amount'],
+                            description=option_data.get('description', ''),
+                            vehicle_type=option_data.get('vehicle_type', ''),
+                            tour_operator=tour_operator,
+                            created_by=created_by
+                        )
+
+                        # Add hotel mappings for this option
+                        for hotel_mapping in option_data.get('hotel_mappings', []):
+                            day = hotel_mapping['day']
+
+                            # Handle regular hotel IDs with room selections
+                            # Support both old format (array of IDs) and new format (array of objects)
+                            hotel_ids_data = hotel_mapping.get('hotel_ids', [])
+                            for hotel_data in hotel_ids_data:
+                                if isinstance(hotel_data, dict):
+                                    # New format: {"hotel_id": 1, "selected_room_type_id": 5, "room_quantity": 2, "selected_room_type": {...}}
+                                    hotel_id = hotel_data.get('hotel_id')
+                                    selected_room_type_id = hotel_data.get('selected_room_type_id')
+                                    room_quantity = hotel_data.get('room_quantity')
+                                    room_snapshot = hotel_data.get('selected_room_type')  # Full room details from package response
+                                else:
+                                    # Old format: just hotel ID (backward compatibility)
+                                    hotel_id = hotel_data
+                                    selected_room_type_id = None
+                                    room_quantity = None
+                                    room_snapshot = None
+
+                                hotel = Hotel.objects.get(id=hotel_id)
+                                selected_room = Room.objects.get(id=selected_room_type_id) if selected_room_type_id else None
+
+                                LeadPackageOptionHotelMapping.objects.create(
+                                    lead_package_option=lead_package_option,
+                                    hotel=hotel,
+                                    selected_room_type=selected_room,
+                                    room_quantity=room_quantity,
+                                    room_snapshot=room_snapshot,  # Store complete room details as snapshot
+                                    day=day,
+                                    tour_operator=tour_operator,
+                                    selected_by=created_by
+                                )
+
+                            # Handle quick hotel data (snapshot as JSON - already has room_type and total_rooms)
+                            for quick_hotel_data in hotel_mapping.get('quick_hotels', []):
+                                # Store quick hotel data as JSON snapshot
+                                LeadPackageOptionHotelMapping.objects.create(
+                                    lead_package_option=lead_package_option,
+                                    quick_hotel_data=quick_hotel_data,
+                                    day=day,
+                                    tour_operator=tour_operator,
+                                    selected_by=created_by
+                                )
 
                 # Response after successful lead creation
                 return JsonResponse({

@@ -55,7 +55,7 @@ The Package API has been enhanced to support **multiple pricing options** (e.g.,
 - **Backward compatible** - old packages without options still work
 - Legacy `package_amount` field is still supported
 
----
+----
 
 ## 📤 API Request Changes
 

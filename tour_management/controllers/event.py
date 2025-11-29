@@ -7,7 +7,7 @@ from django.core import serializers
 
 def add_event(request):
 
-    required_keys = ["location", "created_by", "tour_operator", "name", "description", "contact_no","charges", "destination"]
+    required_keys = ["location", "created_by", "tour_operator", "name", "description", "destination"]
 
     if request.method == 'POST':
         data = json.loads(request.body.decode("utf-8"))
@@ -24,11 +24,11 @@ def add_event(request):
         event = Event(tour_operator=touroperator,
                     name=data['name'],
                     description = data['description'],
-                    contact_no = data['contact_no'],
+                    contact_no = data.get('contact_no'),
                     created_by= user,
                     destination = destination,
                     location = location,
-                    charges = data['charges'])
+                    charges = data.get('charges'))
 
         event.save()
         data = json.loads(serializers.serialize('json', [event],))[0]

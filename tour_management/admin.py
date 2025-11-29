@@ -175,6 +175,24 @@ class RoomAdmin(admin.ModelAdmin):
     search_fields = ('name', 'hotel__name', 'type')
     list_filter = ('tour_operator', 'type', 'bedtype')
 
+@admin.register(QuickHotel)
+class QuickHotelAdmin(admin.ModelAdmin):
+    list_display = ('hotel_name', 'room_type', 'price_per_night', 'total_rooms', 'phone', 'tour_operator', 'created_at')
+    search_fields = ('hotel_name', 'phone', 'address')
+    list_filter = ('tour_operator', 'room_type', 'created_at')
+    readonly_fields = ('created_at',)
+    fieldsets = (
+        ('Hotel Information', {
+            'fields': ('hotel_name', 'address', 'phone')
+        }),
+        ('Room Details', {
+            'fields': ('room_type', 'price_per_night', 'total_rooms')
+        }),
+        ('Metadata', {
+            'fields': ('tour_operator', 'created_by', 'created_at')
+        })
+    )
+
 @admin.register(PackageHotelMapping)
 class PackageHotelMappingAdmin(admin.ModelAdmin):
     list_display = ('package', 'hotel', 'day', 'tour_operator', 'selected_by')
@@ -204,8 +222,60 @@ class PackageOptionAdmin(admin.ModelAdmin):
 
 @admin.register(PackageOptionHotelMapping)
 class PackageOptionHotelMappingAdmin(admin.ModelAdmin):
-    list_display = ('id', 'package_option', 'hotel', 'day', 'tour_operator', 'selected_by')
-    search_fields = ('package_option__name', 'hotel__name')
+    list_display = ('id', 'package_option', 'get_hotel_display', 'day', 'tour_operator', 'selected_by')
+    search_fields = ('package_option__name', 'hotel__name', 'quick_hotel__hotel_name')
+    list_filter = ('tour_operator', 'day')
+    readonly_fields = ('created_at',)
+
+    def get_hotel_display(self, obj):
+        if obj.hotel:
+            return f"Hotel: {obj.hotel.name}"
+        elif obj.quick_hotel:
+            return f"Quick: {obj.quick_hotel.hotel_name}"
+        return "None"
+    get_hotel_display.short_description = 'Hotel'
+
+@admin.register(PackageOptionCarDealerMapping)
+class PackageOptionCarDealerMappingAdmin(admin.ModelAdmin):
+    list_display = ('id', 'package_option', 'car_dealer', 'day', 'tour_operator', 'selected_by')
+    search_fields = ('package_option__name', 'car_dealer__name')
+    list_filter = ('tour_operator', 'day')
+    readonly_fields = ('created_at',)
+
+@admin.register(LeadPackageOption)
+class LeadPackageOptionAdmin(admin.ModelAdmin):
+    list_display = ('id', 'lead_package', 'name', 'amount', 'tour_operator', 'created_at')
+    search_fields = ('name', 'lead_package__name')
+    list_filter = ('tour_operator', 'created_at')
+    readonly_fields = ('created_at',)
+    fieldsets = (
+        ('Option Details', {
+            'fields': ('lead_package', 'name', 'amount', 'description')
+        }),
+        ('Metadata', {
+            'fields': ('tour_operator', 'created_by', 'created_at')
+        })
+    )
+
+@admin.register(LeadPackageOptionHotelMapping)
+class LeadPackageOptionHotelMappingAdmin(admin.ModelAdmin):
+    list_display = ('id', 'lead_package_option', 'get_hotel_display', 'day', 'tour_operator', 'selected_by')
+    search_fields = ('lead_package_option__name', 'hotel__name')
+    list_filter = ('tour_operator', 'day')
+    readonly_fields = ('created_at',)
+
+    def get_hotel_display(self, obj):
+        if obj.hotel:
+            return f"Hotel: {obj.hotel.name}"
+        elif obj.quick_hotel_data:
+            return f"Quick: {obj.quick_hotel_data.get('hotel_name', 'Unknown')}"
+        return "None"
+    get_hotel_display.short_description = 'Hotel'
+
+@admin.register(LeadPackageOptionCarDealerMapping)
+class LeadPackageOptionCarDealerMappingAdmin(admin.ModelAdmin):
+    list_display = ('id', 'lead_package_option', 'car_dealer', 'day', 'tour_operator', 'selected_by')
+    search_fields = ('lead_package_option__name', 'car_dealer__name')
     list_filter = ('tour_operator', 'day')
     readonly_fields = ('created_at',)
 

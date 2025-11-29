@@ -1,7 +1,7 @@
 from __future__ import unicode_literals
 from django.http import HttpResponse, HttpResponseBadRequest
 import json
-from ..models import User, Touroperator, Location, Hotel, Room, Amenity, Inclusion, Exclusion, Policy, ImageMetadata, Package, Destination, Cardealer, Event, SightSeeing, LeadHotelMapping, PackageHotelMapping, PackageOptionHotelMapping
+from ..models import User, Touroperator, Location, Hotel, Room, QuickHotel, Amenity, Inclusion, Exclusion, Policy, ImageMetadata, Package, Destination, Cardealer, Event, SightSeeing, LeadHotelMapping, PackageHotelMapping, PackageOptionHotelMapping
 from django.core.exceptions import ValidationError
 from django.core import serializers
 from django.http import JsonResponse
@@ -804,6 +804,109 @@ def get_rooms_from_db(hotel_id, include_binary=False):
         }
         rooms.append(room_data)
     return rooms
+
+
+def get_room_types(request):
+    """
+    Get available room types for a specific hotel.
+    Used for package building to select room types.
+
+    Request Body:
+    {
+        "tour_operator_id": 1,
+        "hotel_id": 10
+    }
+
+    Response:
+    {
+        "hotel_id": 10,
+        "hotel_name": "Beach Resort",
+        "room_types": [
+            {
+                "id": 25,
+                "name": "Ocean View Suite",
+                "type": "Suite",
+                "capacity": 3,
+                "bedtype": "King",
+                "price_per_night": 5000.0,
+                "description": "Spacious suite with ocean view",
+                "rating": 4.5,
+                "images": [...]
+            }
+        ]
+    }
+    """
+    if request.method != 'POST':
+        return JsonResponse({"error": "Only POST method is allowed"}, status=405)
+
+    try:
+        data = json.loads(request.body.decode("utf-8"))
+
+        # Validate required fields
+        required_fields = ["tour_operator_id", "hotel_id"]
+        missing_fields = [field for field in required_fields if field not in data]
+        if missing_fields:
+            return JsonResponse({"error": f"Missing required fields: {', '.join(missing_fields)}"}, status=400)
+
+        tour_operator_id = data['tour_operator_id']
+        hotel_id = data['hotel_id']
+        include_binary = data.get("include_binary", False)  # Optional: include binary image data
+
+        # Verify tour operator exists
+        try:
+            tour_operator = Touroperator.objects.get(id=tour_operator_id)
+        except Touroperator.DoesNotExist:
+            return JsonResponse({"error": f"Tour operator with id {tour_operator_id} not found"}, status=404)
+
+        # Verify hotel exists and belongs to tour operator
+        try:
+            hotel = Hotel.objects.get(id=hotel_id, tour_operator=tour_operator)
+        except Hotel.DoesNotExist:
+            return JsonResponse({"error": f"Hotel with id {hotel_id} not found for this tour operator"}, status=404)
+
+        # Fetch all rooms for this hotel
+        rooms = Room.objects.filter(hotel=hotel).order_by('type', 'name')
+
+        room_types_data = []
+        for room in rooms:
+            # Fetch room images
+            room_images = get_images('room', room.id, include_binary)
+
+            # Fetch room amenities (optional, for additional info)
+            room_amenities = get_shared_items(room.id, 'room', Amenity)
+            room_inclusions = get_shared_items(room.id, 'room', Inclusion)
+            room_exclusions = get_shared_items(room.id, 'room', Exclusion)
+            room_policies = get_shared_items(room.id, 'room', Policy)
+
+            room_data = {
+                "id": room.id,
+                "name": room.name,
+                "type": room.type,
+                "capacity": int(room.capacity) if room.capacity else None,
+                "bedtype": room.bedtype,
+                "price_per_night": float(room.price_per_night) if room.price_per_night else 0.0,
+                "description": room.description,
+                "rating": float(room.rating) if room.rating else 0.0,
+                "images": room_images,
+                "amenities": room_amenities,
+                "inclusions": room_inclusions,
+                "exclusions": room_exclusions,
+                "policies": room_policies
+            }
+            room_types_data.append(room_data)
+
+        response_data = {
+            "hotel_id": hotel.id,
+            "hotel_name": hotel.name,
+            "room_types": room_types_data
+        }
+
+        return JsonResponse(response_data, status=200)
+
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "Invalid JSON in request body"}, status=400)
+    except Exception as e:
+        return JsonResponse({"error": f"An error occurred: {str(e)}"}, status=500)
 
 
 def delete_hotel(request):

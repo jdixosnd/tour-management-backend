@@ -91,6 +91,14 @@ def add_booking(request):
             # Get package snapshot from request or lead
             package_snapshot = data.get('package_snapshot', {})
 
+            # Get selected package option (if customer selected from multiple options)
+            selected_option_name = data.get('selected_package_option_name')
+            selected_option_amount = data.get('selected_package_option_amount')
+
+            # Get travel dates - use provided dates or copy from lead
+            travel_start_date = data.get('travel_start_date') or lead.travel_start_date
+            travel_end_date = data.get('travel_end_date') or lead.travel_end_date
+
             # Create Transaction
             booking = Transaction.objects.create(
                 lead=lead,
@@ -98,19 +106,24 @@ def add_booking(request):
                 tour_operator=lead.tour_operator,
                 created_by=created_by,
                 destination=lead_package.destination,
-                
+
                 # Package snapshot
                 package_name=package_snapshot.get('name', ''),
                 package_description=package_snapshot.get('description', ''),
                 package_type=package_snapshot.get('type', ''),
                 pax_size=package_snapshot.get('pax_size'),
                 no_of_days=package_snapshot.get('no_of_days'),
+
+                # Selected package option (if applicable)
+                selected_package_option_name=selected_option_name,
+                selected_package_option_amount=Decimal(str(selected_option_amount)) if selected_option_amount else None,
+
                 package_inclusions=package_snapshot.get('inclusions', []),
                 package_exclusions=package_snapshot.get('exclusions', []),
                 package_amenities=package_snapshot.get('amenities', []),
                 package_policies=package_snapshot.get('policies', []),
                 package_images=package_snapshot.get('images', []),
-                
+
                 # Financial details
                 base_amount=Decimal(str(data.get('base_amount', 0))),
                 discount_amount=Decimal(str(data.get('discount_amount', 0))),
@@ -118,14 +131,14 @@ def add_booking(request):
                 final_amount=Decimal(str(data['final_amount'])),
                 amount_paid=Decimal(str(data.get('amount_paid', 0))),
                 amount_due=Decimal(str(data.get('amount_due', 0))),
-                
-                # Booking details
-                travel_start_date=data.get('travel_start_date'),
-                travel_end_date=data.get('travel_end_date'),
+
+                # Booking details - use provided dates or copy from lead
+                travel_start_date=travel_start_date,
+                travel_end_date=travel_end_date,
                 booking_status=data.get('booking_status', 'pending'),
                 payment_status=data.get('payment_status', 'unpaid'),
                 booking_notes=data.get('booking_notes', ''),
-                
+
                 # Set confirmed_at if status is confirmed
                 confirmed_at=timezone.now() if data.get('booking_status') == 'confirmed' else None
             )
@@ -137,16 +150,37 @@ def add_booking(request):
                 hotel_name = ''
                 hotel_description = ''
                 hotel_images = []
-                
+                quick_hotel_data = None
+                selected_room_type = None
+                room_quantity = None
+                room_snapshot = None
+
                 if item_data.get('selected_hotel_id'):
                     try:
                         selected_hotel = Hotel.objects.get(id=item_data['selected_hotel_id'])
                         hotel_name = selected_hotel.name
                         hotel_description = selected_hotel.description or ''
+
+                        # Get room selection if provided
+                        if item_data.get('selected_room_type_id'):
+                            try:
+                                from ..models import Room
+                                selected_room_type = Room.objects.get(id=item_data['selected_room_type_id'])
+                                room_quantity = item_data.get('room_quantity')
+                                room_snapshot = item_data.get('room_snapshot')  # Full room details
+                            except Room.DoesNotExist:
+                                pass
                     except Hotel.DoesNotExist:
                         pass
+                elif item_data.get('quick_hotel_data'):
+                    # Handle quick hotel data (snapshot - already has room_type and total_rooms)
+                    quick_hotel_data = item_data['quick_hotel_data']
+                    hotel_name = quick_hotel_data.get('hotel_name', '')
 
-                # Get selected transport if provided
+                # Get vehicle type (new field)
+                vehicle_type = item_data.get('vehicle_type', '')
+
+                # DEPRECATED: Old car dealer handling - kept for backward compatibility
                 selected_car_dealer = None
                 car_dealer_name = ''
                 car_type = ''
@@ -169,7 +203,16 @@ def add_booking(request):
                     hotel_name=hotel_name,
                     hotel_description=hotel_description,
                     hotel_images=item_data.get('hotel_images', []),
+                    quick_hotel_data=quick_hotel_data,
 
+                    # Room selection snapshot (for regular hotels)
+                    selected_room_type=selected_room_type,
+                    room_quantity=room_quantity,
+                    room_snapshot=room_snapshot,
+
+                    vehicle_type=vehicle_type,
+
+                    # DEPRECATED: Old car dealer fields
                     selected_car_dealer=selected_car_dealer,
                     car_dealer_name=car_dealer_name,
                     car_type=item_data.get('car_type', ''),
@@ -231,7 +274,7 @@ def get_booking(request):
         # Get itinerary items
         itinerary_items = TransactionItineraryItem.objects.filter(
             transaction=booking
-        ).select_related('selected_hotel', 'selected_car_dealer').order_by('day')
+        ).select_related('selected_hotel', 'selected_car_dealer', 'selected_room_type').order_by('day')
 
         # Build response
         response_data = {
@@ -262,6 +305,10 @@ def get_booking(request):
                 "type": booking.package_type,
                 "pax_size": booking.pax_size,
                 "no_of_days": booking.no_of_days,
+                "selected_option": {
+                    "name": booking.selected_package_option_name,
+                    "amount": float(booking.selected_package_option_amount) if booking.selected_package_option_amount else None
+                } if booking.selected_package_option_name else None,
                 "inclusions": booking.package_inclusions,
                 "exclusions": booking.package_exclusions,
                 "amenities": booking.package_amenities,
@@ -278,8 +325,15 @@ def get_booking(request):
                         "id": item.selected_hotel.id if item.selected_hotel else None,
                         "name": item.hotel_name,
                         "description": item.hotel_description,
-                        "images": item.hotel_images
+                        "images": item.hotel_images,
+                        "quick_hotel_data": item.quick_hotel_data,
+                        # Room selection details
+                        "selected_room_type_id": item.selected_room_type.id if item.selected_room_type else None,
+                        "room_quantity": item.room_quantity,
+                        "room_snapshot": item.room_snapshot
                     },
+                    "vehicle_type": item.vehicle_type,
+                    # DEPRECATED: Old transport structure - kept for backward compatibility
                     "transport": {
                         "id": item.selected_car_dealer.id if item.selected_car_dealer else None,
                         "name": item.car_dealer_name,

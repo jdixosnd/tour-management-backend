@@ -430,6 +430,36 @@ class Room(models.Model):
             self.image_ids.remove(image_id)
             self.save(update_fields=['image_ids'])
 
+
+class QuickHotel(models.Model):
+    """
+    Quick hotel data added directly from package page.
+    This is NOT stored in the main Hotel table - it's a lightweight alternative
+    for hotels found on-the-fly for specific packages.
+    """
+    id = models.BigAutoField(primary_key=True)
+    tour_operator = models.ForeignKey(Touroperator, on_delete=models.CASCADE)
+    created_by = models.ForeignKey(User, on_delete=models.CASCADE)
+
+    # Required fields
+    hotel_name = models.CharField(max_length=255)
+    room_type = models.CharField(choices=ROOM_TYPE, max_length=100)
+    price_per_night = models.DecimalField(max_digits=10, decimal_places=2)
+    total_rooms = models.IntegerField()
+
+    # Optional fields
+    address = models.TextField(blank=True, null=True)
+    phone = models.CharField(max_length=15, blank=True, null=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'QuickHotel'
+
+    def __str__(self):
+        return f"{self.hotel_name} - {self.room_type}"
+
+
 class Package(models.Model):
     id = models.BigAutoField(primary_key=True)
     destination = models.ForeignKey(Destination, blank=True, null=True, on_delete=models.CASCADE)
@@ -438,7 +468,8 @@ class Package(models.Model):
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True, null=True)
     type = models.CharField(max_length=100,blank=True, null=True,choices=PACKAGE_TYPES)
-    created_at = models.DateTimeField(auto_now=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
     pax_size = models.IntegerField(blank=True, null=True)
     contains_travel_fare = models.IntegerField(blank=True, null=True)
     transport_type = models.CharField(max_length=45, blank=True, null=True)
@@ -581,6 +612,7 @@ class PackageOption(models.Model):
     name = models.CharField(max_length=100)  # e.g., 'Standard', 'Deluxe', 'Premium'
     amount = models.DecimalField(max_digits=15, decimal_places=2)  # Price for this option
     description = models.TextField(blank=True, null=True)  # Optional description
+    vehicle_type = models.CharField(max_length=255, blank=True, null=True)  # Vehicle/transport type description
     tour_operator = models.ForeignKey(Touroperator, on_delete=models.CASCADE, blank=True, null=True)
     created_by = models.ForeignKey(User, on_delete=models.CASCADE, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -598,10 +630,21 @@ class PackageOptionHotelMapping(models.Model):
     """
     Maps hotels to specific days for each package option.
     This allows different options to have different hotel selections for the same day.
+    Can reference either a regular Hotel OR a QuickHotel (one must be set, not both).
     """
     id = models.BigAutoField(primary_key=True)
     package_option = models.ForeignKey(PackageOption, related_name='hotel_mappings', on_delete=models.CASCADE)
-    hotel = models.ForeignKey(Hotel, on_delete=models.CASCADE)
+
+    # Either hotel OR quick_hotel must be set (not both)
+    hotel = models.ForeignKey(Hotel, on_delete=models.CASCADE, blank=True, null=True)
+    quick_hotel = models.ForeignKey('QuickHotel', on_delete=models.CASCADE, blank=True, null=True)
+
+    # Room selection (only applicable for regular hotels, not quick hotels)
+    selected_room_type = models.ForeignKey('Room', on_delete=models.SET_NULL, blank=True, null=True,
+                                          help_text="Selected room type from the hotel")
+    room_quantity = models.IntegerField(blank=True, null=True,
+                                       help_text="Number of rooms required")
+
     day = models.IntegerField()  # Day number matching the itinerary
     tour_operator = models.ForeignKey(Touroperator, on_delete=models.CASCADE, blank=True, null=True)
     selected_by = models.ForeignKey(User, on_delete=models.CASCADE, blank=True, null=True)
@@ -612,7 +655,37 @@ class PackageOptionHotelMapping(models.Model):
         ordering = ['day', 'id']
 
     def __str__(self):
-        return f"{self.package_option.name} - Day {self.day} - {self.hotel.name}"
+        hotel_name = self.hotel.name if self.hotel else (self.quick_hotel.hotel_name if self.quick_hotel else "Unknown")
+        return f"{self.package_option.name} - Day {self.day} - {hotel_name}"
+
+    def get_hotel_name(self):
+        """Get the hotel name regardless of whether it's a Hotel or QuickHotel"""
+        if self.hotel:
+            return self.hotel.name
+        elif self.quick_hotel:
+            return self.quick_hotel.hotel_name
+        return None
+
+
+class PackageOptionCarDealerMapping(models.Model):
+    """
+    Maps car dealers (transport) to specific days for each package option.
+    This allows different options to have different transport selections for the same day.
+    """
+    id = models.BigAutoField(primary_key=True)
+    package_option = models.ForeignKey(PackageOption, related_name='transport_mappings', on_delete=models.CASCADE)
+    car_dealer = models.ForeignKey(Cardealer, on_delete=models.CASCADE)
+    day = models.IntegerField()  # Day number matching the itinerary
+    tour_operator = models.ForeignKey(Touroperator, on_delete=models.CASCADE, blank=True, null=True)
+    selected_by = models.ForeignKey(User, on_delete=models.CASCADE, blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'PackageOptionCarDealerMapping'
+        ordering = ['day', 'id']
+
+    def __str__(self):
+        return f"{self.package_option.name} - Day {self.day} - {self.car_dealer.name}"
 
 
 class Customer(models.Model):
@@ -636,6 +709,11 @@ class Lead(models.Model):
     customer = models.ForeignKey(Customer, on_delete=models.PROTECT)
     created_at = models.DateTimeField(auto_now_add=True)
     status = models.CharField(max_length=50, choices=LEAD_STATUS)  # e.g., 'New', 'Follow-up', 'Closed'
+
+    # Travel dates (optional - can be set during lead creation or later)
+    travel_start_date = models.DateField(blank=True, null=True)
+    travel_end_date = models.DateField(blank=True, null=True)
+
     class Meta:
         db_table = 'Lead'
 
@@ -724,6 +802,98 @@ class LeadCarDealerMapping(models.Model):
     class Meta:
         db_table = 'LeadCarDealerMapping'
 
+
+class LeadPackageOption(models.Model):
+    """
+    Represents different pricing/hotel options for a lead package (snapshot from PackageOption).
+    Each option has its own price and hotel selections for each day.
+    This is a snapshot - changes to the original PackageOption won't affect this.
+    """
+    id = models.BigAutoField(primary_key=True)
+    lead_package = models.ForeignKey(LeadPackage, related_name='package_options', on_delete=models.PROTECT)
+    name = models.CharField(max_length=100)  # e.g., 'Standard', 'Deluxe', 'Premium'
+    amount = models.DecimalField(max_digits=15, decimal_places=2)  # Price for this option
+    description = models.TextField(blank=True, null=True)  # Optional description
+    vehicle_type = models.CharField(max_length=255, blank=True, null=True)  # Vehicle/transport type description (snapshot)
+    tour_operator = models.ForeignKey(Touroperator, on_delete=models.PROTECT, blank=True, null=True)
+    created_by = models.ForeignKey(User, on_delete=models.PROTECT, blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'LeadPackageOption'
+        ordering = ['id']
+
+    def __str__(self):
+        return f"{self.lead_package.name} - {self.name} (₹{self.amount})"
+
+
+class LeadPackageOptionHotelMapping(models.Model):
+    """
+    Maps hotels to specific days for each lead package option.
+    This allows different options to have different hotel selections for the same day.
+    This is a snapshot - changes to the original hotel won't affect this.
+    Can reference either a regular Hotel OR store QuickHotel data as JSON snapshot.
+    """
+    id = models.BigAutoField(primary_key=True)
+    lead_package_option = models.ForeignKey(LeadPackageOption, related_name='hotel_mappings', on_delete=models.PROTECT)
+
+    # Either hotel OR quick_hotel_data must be set (not both)
+    hotel = models.ForeignKey(Hotel, on_delete=models.PROTECT, blank=True, null=True)
+    quick_hotel_data = models.JSONField(blank=True, null=True)  # Snapshot of QuickHotel data
+    # Format: {"hotel_name": "...", "room_type": "...", "price_per_night": ..., "total_rooms": ..., "address": "...", "phone": "..."}
+
+    # Room selection snapshot (for regular hotels)
+    selected_room_type = models.ForeignKey('Room', on_delete=models.PROTECT, blank=True, null=True,
+                                          help_text="Selected room type from the hotel (snapshot reference)")
+    room_quantity = models.IntegerField(blank=True, null=True,
+                                       help_text="Number of rooms required")
+    room_snapshot = models.JSONField(blank=True, null=True)  # Snapshot of room data at lead creation time
+    # Format: {"id": ..., "name": "...", "type": "...", "capacity": ..., "bedtype": "...", "price_per_night": ..., "description": "...", "images": [...]}
+
+    day = models.IntegerField()  # Day number matching the itinerary
+    tour_operator = models.ForeignKey(Touroperator, on_delete=models.PROTECT, blank=True, null=True)
+    selected_by = models.ForeignKey(User, on_delete=models.PROTECT, blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'LeadPackageOptionHotelMapping'
+        ordering = ['day', 'id']
+
+    def __str__(self):
+        hotel_name = self.hotel.name if self.hotel else (self.quick_hotel_data.get('hotel_name') if self.quick_hotel_data else "Unknown")
+        return f"{self.lead_package_option.name} - Day {self.day} - {hotel_name}"
+
+    def get_hotel_name(self):
+        """Get the hotel name regardless of whether it's a Hotel or QuickHotel"""
+        if self.hotel:
+            return self.hotel.name
+        elif self.quick_hotel_data:
+            return self.quick_hotel_data.get('hotel_name')
+        return None
+
+
+class LeadPackageOptionCarDealerMapping(models.Model):
+    """
+    Maps car dealers (transport) to specific days for each lead package option.
+    This allows different options to have different transport selections for the same day.
+    This is a snapshot - changes to the original car dealer won't affect this.
+    """
+    id = models.BigAutoField(primary_key=True)
+    lead_package_option = models.ForeignKey(LeadPackageOption, related_name='transport_mappings', on_delete=models.PROTECT)
+    car_dealer = models.ForeignKey(Cardealer, on_delete=models.PROTECT)
+    day = models.IntegerField()  # Day number matching the itinerary
+    tour_operator = models.ForeignKey(Touroperator, on_delete=models.PROTECT, blank=True, null=True)
+    selected_by = models.ForeignKey(User, on_delete=models.PROTECT, blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'LeadPackageOptionCarDealerMapping'
+        ordering = ['day', 'id']
+
+    def __str__(self):
+        return f"{self.lead_package_option.name} - Day {self.day} - {self.car_dealer.name}"
+
+
 ######################################################   TRANSACTION RELATED TABLES      #####################################################################
 
 
@@ -767,6 +937,10 @@ class Transaction(models.Model):
     package_type = models.CharField(max_length=100, blank=True, null=True)
     pax_size = models.IntegerField(blank=True, null=True)
     no_of_days = models.IntegerField(blank=True, null=True)
+
+    # Selected package option (if lead had multiple options)
+    selected_package_option_name = models.CharField(max_length=100, blank=True, null=True)  # e.g., 'Deluxe'
+    selected_package_option_amount = models.DecimalField(max_digits=15, decimal_places=2, blank=True, null=True)  # Option's base price
 
     # Snapshot of package-level data (from lead)
     package_inclusions = models.JSONField(blank=True, null=True)
@@ -816,7 +990,22 @@ class TransactionItineraryItem(models.Model):
     hotel_description = models.TextField(blank=True, null=True)
     hotel_images = models.JSONField(blank=True, null=True)
 
-    # Customer's SELECTED transport for this day (one from lead's multiple options)
+    # QuickHotel data snapshot (if customer selected a quick hotel)
+    quick_hotel_data = models.JSONField(blank=True, null=True)
+    # Format: {"hotel_name": "...", "room_type": "...", "price_per_night": ..., "total_rooms": ..., "address": "...", "phone": "..."}
+
+    # Room selection snapshot (for regular hotels)
+    selected_room_type = models.ForeignKey('Room', on_delete=models.PROTECT, blank=True, null=True,
+                                          help_text="Selected room type from the hotel (snapshot reference)")
+    room_quantity = models.IntegerField(blank=True, null=True,
+                                       help_text="Number of rooms booked")
+    room_snapshot = models.JSONField(blank=True, null=True)  # Snapshot of room data at booking time
+    # Format: {"id": ..., "name": "...", "type": "...", "capacity": ..., "bedtype": "...", "price_per_night": ..., "description": "...", "images": [...]}
+
+    # Vehicle/transport type description (replaces car dealer references)
+    vehicle_type = models.CharField(max_length=255, blank=True, null=True)
+
+    # DEPRECATED: Old car dealer fields - kept for backward compatibility during migration
     selected_car_dealer = models.ForeignKey(Cardealer, blank=True, null=True, on_delete=models.PROTECT)
     car_dealer_name = models.CharField(max_length=255, blank=True, null=True)
     car_type = models.CharField(max_length=255, blank=True, null=True)

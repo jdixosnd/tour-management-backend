@@ -40,6 +40,7 @@ urlpatterns = [
         path('hotel/get/', hotel.get_hotels, name='get_hotels'),
         path('hotel/room/add/',hotel.add_rooms,name='add_rooms'),
         path('hotel/room/get/',hotel.get_rooms,name='get_rooms'),
+        path('hotel/room_types/get/',hotel.get_room_types,name='get_room_types'),
         path('hotel/update/',hotel.update_hotel,name='update_hotel'),
         path('hotel/delete/',hotel.delete_hotel,name='delete_hotel'),
 
@@ -61,6 +62,7 @@ urlpatterns = [
 
         path('package/add/', package.add_package, name='add_package'),
         path('packages_from_destination/get/',package.get_packages_from_destination,name='get_packages_from_destination'),
+        path('package/get_all/', package.get_all_packages, name='get_all_packages'),
         path('package/get/', package.get_package, name='get_package'),
         path('package/update/', package.update_package, name='update_package'),
         path('package/delete/', package.delete_package, name='delete_package'),

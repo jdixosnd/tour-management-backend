@@ -1,7 +1,7 @@
 from __future__ import unicode_literals
 from django.http import HttpResponse, HttpResponseBadRequest
 import json
-from ..models import User, Touroperator,Destination, Location, PackageCarDealerMapping,Itineraryitem, PackageHotelMapping, Package, Event, SightSeeing, Packageitineraryitem, DestinationPackageMapping, Hotel, Cardealer, Inclusion, Exclusion, ImageMetadata, PackageOption, PackageOptionHotelMapping
+from ..models import User, Touroperator,Destination, Location, PackageCarDealerMapping,Itineraryitem, PackageHotelMapping, Package, Event, SightSeeing, Packageitineraryitem, DestinationPackageMapping, Hotel, Cardealer, QuickHotel, Inclusion, Exclusion, ImageMetadata, PackageOption, PackageOptionHotelMapping, PackageOptionCarDealerMapping, Room, StateCityToDestinationMapping
 from django.core.exceptions import ValidationError
 from django.contrib.auth.hashers import make_password, check_password
 from django.core import serializers
@@ -28,7 +28,7 @@ def get_packages_from_destination(request):
         if not tour_operator_id:
             return JsonResponse({"error": "tour_operator_id is required."}, status=400)
         
-        packages = Package.objects.filter(tour_operator_id=tour_operator_id)
+        packages = Package.objects.filter(tour_operator_id=tour_operator_id).order_by('-updated_at')
         if not destination_id:
             return JsonResponse({"error": "destination_id is required."}, status=400)
         
@@ -72,6 +72,8 @@ def get_packages_from_destination(request):
 
             result.append({
                 "id": package.id,
+                "created_at": package.created_at.isoformat() if package.created_at else None,
+                "updated_at": package.updated_at.isoformat() if package.updated_at else None,
                 "name": package.name,
                 "destination_id":package.destination_id,
                 "description": package.description,
@@ -94,6 +96,137 @@ def get_packages_from_destination(request):
                 "previous": paginator.get_previous_link(),
             }}, safe=False, status=200)
     
+def get_all_packages(request):
+    """
+    Lightweight package listing API for card/list views.
+
+    Request body:
+    {
+        "tour_operator_id": 1,          # required
+        "destination_id": 2,            # optional filter
+        "page": 1,                      # optional
+        "page_size": 20                 # optional, defaults to no pagination when omitted
+    }
+    """
+    if request.method != 'POST':
+        return JsonResponse({"error": "Only POST method is allowed"}, status=405)
+
+    try:
+        data = json.loads(request.body.decode("utf-8"))
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "Invalid JSON in request body"}, status=400)
+
+    tour_operator_id = data.get('tour_operator_id')
+    destination_id = data.get('destination_id')
+
+    # Optional pagination from request body
+    page = data.get('page')
+    page_size = data.get('page_size')
+
+    if not tour_operator_id:
+        return JsonResponse({"error": "tour_operator_id is required."}, status=400)
+
+    try:
+        packages = Package.objects.filter(tour_operator_id=tour_operator_id)
+        if destination_id:
+            packages = packages.filter(destination_id=destination_id)
+        packages = packages.order_by('-updated_at')
+
+        # Apply manual pagination only when page is provided
+        pagination = None
+        if page is not None:
+            try:
+                page = int(page)
+                page_size = int(page_size) if page_size is not None else 10
+            except (TypeError, ValueError):
+                return JsonResponse({"error": "page and page_size must be integers."}, status=400)
+
+            if page <= 0 or page_size <= 0:
+                return JsonResponse({"error": "page and page_size must be positive integers."}, status=400)
+
+            total_count = packages.count()
+            start_index = (page - 1) * page_size
+            end_index = start_index + page_size
+            packages = packages[start_index:end_index]
+            pagination = {
+                "count": total_count,
+                "num_pages": (total_count + page_size - 1) // page_size,
+                "current_page": page,
+                "page_size": page_size
+            }
+
+        packages_data = []
+        for package in packages:
+            package_images = get_images('package', package.id, include_binary=False)
+            images = [
+                {
+                    "id": image.get("id"),
+                    "url": image.get("image_url")
+                }
+                for image in package_images
+                if image.get("id") is not None and image.get("image_url") is not None
+            ]
+
+            # Build destination location list
+            locations = []
+            seen_locations = set()
+            if package.destination:
+                mappings = StateCityToDestinationMapping.objects.filter(
+                    destination=package.destination
+                ).select_related('state_city', 'location')
+
+                for mapping in mappings:
+                    city = mapping.state_city.city if mapping.state_city else None
+                    state = mapping.state_city.state if mapping.state_city else None
+                    country = mapping.location.country if mapping.location else ""
+                    key = (city or "", state or "", country or "")
+                    if key in seen_locations or not any([city, state, country]):
+                        continue
+                    seen_locations.add(key)
+                    locations.append({
+                        "city": city,
+                        "state": state,
+                        "country": country
+                    })
+
+            # Fallback to day-wise destination mapping if destination has no mapped locations
+            if not locations:
+                day_destinations = DestinationPackageMapping.objects.filter(package_id=package.id)
+                for destination_mapping in day_destinations:
+                    key = (
+                        destination_mapping.city or "",
+                        destination_mapping.state or "",
+                        ""  # country unknown in this mapping
+                    )
+                    if key in seen_locations or not any(key):
+                        continue
+                    seen_locations.add(key)
+                    locations.append({
+                        "city": destination_mapping.city,
+                        "state": destination_mapping.state,
+                        "country": ""
+                    })
+
+            packages_data.append({
+                "id": package.id,
+                "created_at": package.created_at.isoformat() if package.created_at else None,
+                "updated_at": package.updated_at.isoformat() if package.updated_at else None,
+                "name": package.name,
+                "description": package.description,
+                "images": images,
+                "destination": {
+                    "locations": locations
+                }
+            })
+
+        response = {"data": packages_data}
+        if pagination:
+            response["pagination"] = pagination
+
+        return JsonResponse(response, status=200)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)
+    
 def get_package(request):
     result = []
     if request.method == 'POST':
@@ -111,6 +244,7 @@ def get_package(request):
             packages = packages.filter(destination_id=destination_id)
         if package_id:
             packages = packages.filter(id=package_id)
+        packages = packages.order_by('-updated_at')
 
         # Apply pagination
         paginator = PageNumberPagination()
@@ -256,18 +390,47 @@ def get_package(request):
                 hotel_mappings_data = []
                 hotel_mappings = PackageOptionHotelMapping.objects.filter(
                     package_option=option
-                ).select_related('hotel').order_by('day')
+                ).select_related('hotel', 'quick_hotel', 'selected_room_type').order_by('day')
 
-                # Group hotels by day
-                day_hotel_map = defaultdict(list)
+                # Group hotels and quick hotels by day
+                day_hotel_map = defaultdict(lambda: {"hotel_ids": [], "quick_hotels": []})
                 for mapping in hotel_mappings:
-                    day_hotel_map[mapping.day].append(mapping.hotel.id)
+                    if mapping.hotel:
+                        # New format with room selection details
+                        hotel_data = {
+                            "hotel_id": mapping.hotel.id,
+                            "selected_room_type_id": mapping.selected_room_type.id if mapping.selected_room_type else None,
+                            "room_quantity": mapping.room_quantity
+                        }
+                        # Include room details if room type is selected
+                        if mapping.selected_room_type:
+                            hotel_data["selected_room_type"] = {
+                                "id": mapping.selected_room_type.id,
+                                "name": mapping.selected_room_type.name,
+                                "type": mapping.selected_room_type.type,
+                                "capacity": int(mapping.selected_room_type.capacity) if mapping.selected_room_type.capacity else None,
+                                "bedtype": mapping.selected_room_type.bedtype,
+                                "price_per_night": mapping.selected_room_type.price_per_night,
+                                "description": mapping.selected_room_type.description
+                            }
+                        day_hotel_map[mapping.day]["hotel_ids"].append(hotel_data)
+                    elif mapping.quick_hotel:
+                        day_hotel_map[mapping.day]["quick_hotels"].append({
+                            "id": mapping.quick_hotel.id,
+                            "hotel_name": mapping.quick_hotel.hotel_name,
+                            "room_type": mapping.quick_hotel.room_type,
+                            "price_per_night": float(mapping.quick_hotel.price_per_night),
+                            "total_rooms": mapping.quick_hotel.total_rooms,
+                            "address": mapping.quick_hotel.address,
+                            "phone": mapping.quick_hotel.phone
+                        })
 
                 # Convert to the required format
-                for day, hotel_ids in sorted(day_hotel_map.items()):
+                for day in sorted(day_hotel_map.keys()):
                     hotel_mappings_data.append({
                         "day": day,
-                        "hotel_ids": hotel_ids
+                        "hotel_ids": day_hotel_map[day]["hotel_ids"],
+                        "quick_hotels": day_hotel_map[day]["quick_hotels"]
                     })
 
                 package_options_data.append({
@@ -275,12 +438,15 @@ def get_package(request):
                     "name": option.name,
                     "amount": float(option.amount),
                     "description": option.description,
+                    "vehicle_type": option.vehicle_type,
                     "hotel_mappings": hotel_mappings_data
                 })
 
             # Structure final package data
             package_data = {
                 "id": package.id,
+                "created_at": package.created_at.isoformat() if package.created_at else None,
+                "updated_at": package.updated_at.isoformat() if package.updated_at else None,
                 "name": package.name,
                 "destination_id":package.destination_id,
                 "description": package.description,
@@ -409,11 +575,12 @@ def add_package(request):
                     )
                     # Process activities within each day
                     for activity in itinerary['activities']:
-                        item_type = activity['type'].lower()
+                        # Default to 'event' type if not specified
+                        item_type = activity.get('type', 'event').lower()
                         item_name = activity['name']
                         item_description = activity.get('description', '')
-                        contact_no = activity.get('contact_no', '')
-                        charges = float(activity.get('charges', 0.0))
+                        contact_no = activity.get('contact_no', None)
+                        charges = float(activity['charges']) if activity.get('charges') is not None else None
 
                         # Handle Location creation or retrieval
                         location = None
@@ -431,7 +598,7 @@ def add_package(request):
                         # Create itinerary item and link to package
 
                         city, state=itinerary.get('city', ''),itinerary.get('state', '') #get_city_state_from_day(data['destination_mapping'],day)
-                       
+
                         itinerary_item = Itineraryitem.objects.filter(item_id=item_id, item_type=item_type,city=city,state=state,tour_operator_id=tour_operator,destination=destination).first()
                         if not itinerary_item:
                             itinerary_item = Itineraryitem.objects.create(
@@ -456,7 +623,9 @@ def add_package(request):
                             sequence=activity['sequence']
                         )
 
-                    # Map selected hotels for each day
+                    # DEPRECATED: Map selected hotels for each day
+                    # Frontend now sends hotel data in package_options.hotel_mappings
+                    # This code is kept for backward compatibility but will be skipped if array is empty
                     for hotel_id in itinerary.get('hotel_details', []):
                         hotel = Hotel.objects.get(id=hotel_id)
                         PackageHotelMapping.objects.create(
@@ -467,7 +636,9 @@ def add_package(request):
                             selected_by=created_by
                         )
 
-                    # Map selected car dealers for each day
+                    # DEPRECATED: Map selected car dealers for each day
+                    # Frontend now sends transport data in package_options.hotel_mappings.transport_ids
+                    # This code is kept for backward compatibility but will be skipped if array is empty
                     for car_dealer_id in itinerary.get('car_dealers', []):
                         car_dealer = Cardealer.objects.get(id=car_dealer_id)
                         PackageCarDealerMapping.objects.create(
@@ -509,6 +680,7 @@ def add_package(request):
                             name=option_data['name'],
                             amount=option_data['amount'],
                             description=option_data.get('description', ''),
+                            vehicle_type=option_data.get('vehicle_type', ''),
                             tour_operator=tour_operator,
                             created_by=created_by
                         )
@@ -516,11 +688,52 @@ def add_package(request):
                         # Add hotel mappings for this option
                         for hotel_mapping in option_data.get('hotel_mappings', []):
                             day = hotel_mapping['day']
-                            for hotel_id in hotel_mapping.get('hotel_ids', []):
+
+                            # Handle regular hotel IDs with room selections
+                            # Support both old format (array of IDs) and new format (array of objects)
+                            hotel_ids_data = hotel_mapping.get('hotel_ids', [])
+                            for hotel_data in hotel_ids_data:
+                                if isinstance(hotel_data, dict):
+                                    # New format: {"hotel_id": 1, "selected_room_type_id": 5, "room_quantity": 2}
+                                    hotel_id = hotel_data.get('hotel_id')
+                                    selected_room_type_id = hotel_data.get('selected_room_type_id')
+                                    room_quantity = hotel_data.get('room_quantity')
+                                else:
+                                    # Old format: just hotel ID (backward compatibility)
+                                    hotel_id = hotel_data
+                                    selected_room_type_id = None
+                                    room_quantity = None
+
                                 hotel = Hotel.objects.get(id=hotel_id)
+                                selected_room = Room.objects.get(id=selected_room_type_id) if selected_room_type_id else None
+
                                 PackageOptionHotelMapping.objects.create(
                                     package_option=package_option,
                                     hotel=hotel,
+                                    selected_room_type=selected_room,
+                                    room_quantity=room_quantity,
+                                    day=day,
+                                    tour_operator=tour_operator,
+                                    selected_by=created_by
+                                )
+
+                            # Handle quick hotel data (already has room_type and total_rooms)
+                            for quick_hotel_data in hotel_mapping.get('quick_hotels', []):
+                                # Create QuickHotel entry
+                                quick_hotel = QuickHotel.objects.create(
+                                    tour_operator=tour_operator,
+                                    created_by=created_by,
+                                    hotel_name=quick_hotel_data['hotel_name'],
+                                    room_type=quick_hotel_data['room_type'],
+                                    price_per_night=quick_hotel_data['price_per_night'],
+                                    total_rooms=quick_hotel_data['total_rooms'],
+                                    address=quick_hotel_data.get('address'),
+                                    phone=quick_hotel_data.get('phone')
+                                )
+                                # Create mapping
+                                PackageOptionHotelMapping.objects.create(
+                                    package_option=package_option,
+                                    quick_hotel=quick_hotel,
                                     day=day,
                                     tour_operator=tour_operator,
                                     selected_by=created_by
@@ -611,11 +824,12 @@ def update_package(request):
 
                     # Process activities within each day
                     for activity in itinerary['activities']:
-                        item_type = activity['type'].lower()
+                        # Default to 'event' type if not specified
+                        item_type = activity.get('type', 'event').lower()
                         item_name = activity['name']
                         item_description = activity.get('description', '')
-                        contact_no = activity.get('contact_no', '')
-                        charges = float(activity.get('charges', 0.0))
+                        contact_no = activity.get('contact_no', None)
+                        charges = float(activity['charges']) if activity.get('charges') is not None else None
 
                         # Handle Location creation or retrieval
                         location = None
@@ -659,7 +873,9 @@ def update_package(request):
                     # Remove items not in the updated_items list for the current day
                     Packageitineraryitem.objects.filter(package=package, day=day).exclude(id__in=updated_items).delete()
 
-                    # Map selected hotels for each day
+                    # DEPRECATED: Map selected hotels for each day
+                    # Frontend now sends hotel data in package_options.hotel_mappings
+                    # This code is kept for backward compatibility but will be skipped if array is empty
                     PackageHotelMapping.objects.filter(package=package, day=day).delete()
                     for hotel_id in itinerary.get('hotel_details', []):
                         hotel = Hotel.objects.get(id=hotel_id)
@@ -671,7 +887,9 @@ def update_package(request):
                             day=day
                         )
 
-                    # Map selected car dealers for each day
+                    # DEPRECATED: Map selected car dealers for each day
+                    # Frontend now sends transport data in package_options.hotel_mappings.transport_ids
+                    # This code is kept for backward compatibility but will be skipped if array is empty
                     PackageCarDealerMapping.objects.filter(package=package, day=day).delete()
                     for car_dealer_id in itinerary.get('car_dealers', []):
                         car_dealer = Cardealer.objects.get(id=car_dealer_id)
@@ -721,6 +939,7 @@ def update_package(request):
                             name=option_data['name'],
                             amount=option_data['amount'],
                             description=option_data.get('description', ''),
+                            vehicle_type=option_data.get('vehicle_type', ''),
                             tour_operator=tour_operator,
                             created_by=created_by
                         )
@@ -728,11 +947,52 @@ def update_package(request):
                         # Add hotel mappings for this option
                         for hotel_mapping in option_data.get('hotel_mappings', []):
                             day = hotel_mapping['day']
-                            for hotel_id in hotel_mapping.get('hotel_ids', []):
+
+                            # Handle regular hotel IDs with room selections
+                            # Support both old format (array of IDs) and new format (array of objects)
+                            hotel_ids_data = hotel_mapping.get('hotel_ids', [])
+                            for hotel_data in hotel_ids_data:
+                                if isinstance(hotel_data, dict):
+                                    # New format: {"hotel_id": 1, "selected_room_type_id": 5, "room_quantity": 2}
+                                    hotel_id = hotel_data.get('hotel_id')
+                                    selected_room_type_id = hotel_data.get('selected_room_type_id')
+                                    room_quantity = hotel_data.get('room_quantity')
+                                else:
+                                    # Old format: just hotel ID (backward compatibility)
+                                    hotel_id = hotel_data
+                                    selected_room_type_id = None
+                                    room_quantity = None
+
                                 hotel = Hotel.objects.get(id=hotel_id)
+                                selected_room = Room.objects.get(id=selected_room_type_id) if selected_room_type_id else None
+
                                 PackageOptionHotelMapping.objects.create(
                                     package_option=package_option,
                                     hotel=hotel,
+                                    selected_room_type=selected_room,
+                                    room_quantity=room_quantity,
+                                    day=day,
+                                    tour_operator=tour_operator,
+                                    selected_by=created_by
+                                )
+
+                            # Handle quick hotel data (already has room_type and total_rooms)
+                            for quick_hotel_data in hotel_mapping.get('quick_hotels', []):
+                                # Create QuickHotel entry
+                                quick_hotel = QuickHotel.objects.create(
+                                    tour_operator=tour_operator,
+                                    created_by=created_by,
+                                    hotel_name=quick_hotel_data['hotel_name'],
+                                    room_type=quick_hotel_data['room_type'],
+                                    price_per_night=quick_hotel_data['price_per_night'],
+                                    total_rooms=quick_hotel_data['total_rooms'],
+                                    address=quick_hotel_data.get('address'),
+                                    phone=quick_hotel_data.get('phone')
+                                )
+                                # Create mapping
+                                PackageOptionHotelMapping.objects.create(
+                                    package_option=package_option,
+                                    quick_hotel=quick_hotel,
                                     day=day,
                                     tour_operator=tour_operator,
                                     selected_by=created_by
