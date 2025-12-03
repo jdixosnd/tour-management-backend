@@ -6,7 +6,11 @@ import os
 from datetime import datetime
 from django.conf import settings
 from django.template.loader import render_to_string
-from weasyprint import HTML
+try:
+    from weasyprint import HTML
+except OSError:
+    HTML = None
+
 import uuid
 
 

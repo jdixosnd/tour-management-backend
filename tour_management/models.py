@@ -365,6 +365,7 @@ class Hotel(models.Model):
     phoneno = models.CharField(max_length=15, blank=True, null=True)
     is_active = models.BooleanField(default=True)
     image_ids = models.JSONField(blank=True, null=True)  # List of image IDs
+    meal_type = models.CharField(max_length=255, blank=True, null=True)
 
     class Meta:
         db_table = 'Hotel'
@@ -450,6 +451,7 @@ class QuickHotel(models.Model):
     # Optional fields
     address = models.TextField(blank=True, null=True)
     phone = models.CharField(max_length=15, blank=True, null=True)
+    meal_type = models.CharField(max_length=255, blank=True, null=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
 

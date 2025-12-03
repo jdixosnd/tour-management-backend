@@ -422,7 +422,8 @@ def get_package(request):
                             "price_per_night": float(mapping.quick_hotel.price_per_night),
                             "total_rooms": mapping.quick_hotel.total_rooms,
                             "address": mapping.quick_hotel.address,
-                            "phone": mapping.quick_hotel.phone
+                            "phone": mapping.quick_hotel.phone,
+                            "meal_type": mapping.quick_hotel.meal_type
                         })
 
                 # Convert to the required format
@@ -728,7 +729,8 @@ def add_package(request):
                                     price_per_night=quick_hotel_data['price_per_night'],
                                     total_rooms=quick_hotel_data['total_rooms'],
                                     address=quick_hotel_data.get('address'),
-                                    phone=quick_hotel_data.get('phone')
+                                    phone=quick_hotel_data.get('phone'),
+                                    meal_type=quick_hotel_data.get('meal_type')
                                 )
                                 # Create mapping
                                 PackageOptionHotelMapping.objects.create(

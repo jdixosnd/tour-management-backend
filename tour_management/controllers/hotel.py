@@ -74,7 +74,8 @@ def add_hotel(request):
                     description=data.get('description'),
                     ratings=data.get('ratings'),
                     website=data.get('website'),
-                    phoneno=data['phoneno']
+                    phoneno=data['phoneno'],
+                    meal_type=data.get('meal_type')
                 )
 
                 # Add shared items for the hotel with tour_operator and created_by
@@ -131,6 +132,7 @@ def add_hotel(request):
                     "ratings": hotel.ratings,
                     "website": hotel.website,
                     "phoneno": hotel.phoneno,
+                    "meal_type": hotel.meal_type,
                     "location": {
                         "id": location.id,
                         "name": location.name,
@@ -240,6 +242,7 @@ def update_hotel(request):
                 hotel.ratings = data.get('ratings', hotel.ratings)
                 hotel.website = data.get('website', hotel.website)
                 hotel.phoneno = data['phoneno']
+                hotel.meal_type = data.get('meal_type', hotel.meal_type)
                 hotel.save()
 
                 # Update shared items for the hotel
@@ -470,6 +473,7 @@ def get_hotels_from_db(hotel_id, include_binary=False):
         "name": hotel.name,
         "description": hotel.description,
         "ratings": float(hotel.ratings),
+        "meal_type": hotel.meal_type,
         "location": {
                 "id": hotel.location.id,
                 "name": hotel.location.name,
@@ -580,6 +584,7 @@ def get_hotels(request):
                     "ratings": int(hotel.ratings),
                     "website": hotel.website,
                     "phoneno": hotel.phoneno,
+                    "meal_type": hotel.meal_type,
                     "location": {
                         "id": location.id,
                         "name": location.name,
@@ -664,6 +669,7 @@ def get_hotel_by_id(hotel_id, include_binary=False):
             "ratings": hotel.ratings,
             "website": hotel.website,
             "phoneno": hotel.phoneno,
+            "meal_type": hotel.meal_type,
             "location": {
                 "id": location.id,
                 "name": location.name,
