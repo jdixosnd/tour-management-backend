@@ -989,7 +989,8 @@ def update_package(request):
                                     price_per_night=quick_hotel_data['price_per_night'],
                                     total_rooms=quick_hotel_data['total_rooms'],
                                     address=quick_hotel_data.get('address'),
-                                    phone=quick_hotel_data.get('phone')
+                                    phone=quick_hotel_data.get('phone'),
+                                    meal_type=quick_hotel_data.get('meal_type')
                                 )
                                 # Create mapping
                                 PackageOptionHotelMapping.objects.create(

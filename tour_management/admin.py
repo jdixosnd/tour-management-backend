@@ -177,7 +177,7 @@ class RoomAdmin(admin.ModelAdmin):
 
 @admin.register(QuickHotel)
 class QuickHotelAdmin(admin.ModelAdmin):
-    list_display = ('hotel_name', 'room_type', 'price_per_night', 'total_rooms', 'phone', 'tour_operator', 'created_at')
+    list_display = ('hotel_name', 'room_type', 'price_per_night', 'total_rooms', 'meal_type', 'phone', 'tour_operator', 'created_at')
     search_fields = ('hotel_name', 'phone', 'address')
     list_filter = ('tour_operator', 'room_type', 'created_at')
     readonly_fields = ('created_at',)
@@ -186,7 +186,7 @@ class QuickHotelAdmin(admin.ModelAdmin):
             'fields': ('hotel_name', 'address', 'phone')
         }),
         ('Room Details', {
-            'fields': ('room_type', 'price_per_night', 'total_rooms')
+            'fields': ('room_type', 'price_per_night', 'total_rooms', 'meal_type')
         }),
         ('Metadata', {
             'fields': ('tour_operator', 'created_by', 'created_at')
