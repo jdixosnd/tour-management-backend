@@ -220,6 +220,32 @@ def get_lead(request):
                     "hotel_mappings": hotel_mappings_data
                 })
 
+            # Enrich hotel mappings with full details for PDF generation
+            for option_data in package_options_data:
+                for day_mapping in option_data['hotel_mappings']:
+                    # Process regular hotels
+                    enriched_hotels = []
+                    for hotel_info in day_mapping['hotel_ids']:
+                        hotel_id = hotel_info['hotel_id']
+                        # Fetch full hotel details
+                        full_hotel_details = get_hotel_by_id(hotel_id)
+                        
+                        # Merge room selection if available
+                        if 'selected_room_type' in hotel_info:
+                            full_hotel_details['selected_room_snapshot'] = hotel_info['selected_room_type']
+                        elif 'selected_room_type_id' in hotel_info:
+                            # Try to find the selected room in the fetched rooms
+                            rooms = full_hotel_details.get('rooms', [])
+                            selected_room = next((r for r in rooms if r['id'] == hotel_info['selected_room_type_id']), None)
+                            if selected_room:
+                                full_hotel_details['selected_room_data'] = selected_room
+                        
+                        full_hotel_details['room_quantity'] = hotel_info.get('room_quantity')
+                        enriched_hotels.append(full_hotel_details)
+                    
+                    # Replace the basic ID list with enriched details
+                    day_mapping['hotels_detailed'] = enriched_hotels
+
             # Structure final lead package data (matching package API response format)
             lead_package_data = {
                 "id": lead_package.id,

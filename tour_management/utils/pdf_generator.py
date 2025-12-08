@@ -199,6 +199,9 @@ def generate_lead_pdf(lead_data, company_profile_data=None, created_by_data=None
 
                 # Itinerary - COMPLETE day-wise details with hotels, rooms, activities, transportation
                 'itinerary_details': package_data.get('itinerary_details', []),
+
+                # Package Options - with per-option hotel details
+                'package_options': package_data.get('package_options', []),
             },
 
             # Company profile complete info

@@ -279,17 +279,18 @@
         /* --- NEW: Mini-gallery for hotels/activities/rooms --- */
         .mini-gallery {
             display: flex;
+            flex-wrap: wrap; /* efficient use of space in PDF */
             gap: 8px;
-            margin-top: 8px;
-            overflow-x: auto; /* Allows horizontal scrolling if many images */
-            padding-bottom: 5px; /* For scrollbar space */
+            margin-top: 12px;
+            padding-top: 8px;
+            border-top: 1px dashed #eee;
         }
         .mini-gallery img {
-            width: 80px;
-            height: 60px;
+            width: 90px;
+            height: 70px;
             object-fit: cover;
             border-radius: 4px;
-            flex-shrink: 0; /* Prevent images from shrinking */
+            border: 1px solid #ddd;
         }
         .mini-gallery .img-placeholder {
             width: 80px;
@@ -449,6 +450,33 @@
         <p>{{ package.description|safe }}</p> <!-- Use |safe if description contains HTML -->
     </div>
 
+    <!-- ======== PACKAGE OPTIONS OVERVIEW ======== -->
+    {% if package.package_options %}
+    <div class="package-description" style="margin-top: 20px; border-left-color: #0d47a1;">
+        <h2>Package Options</h2>
+        <table style="width: 100%; border-collapse: collapse; margin-top: 10px;">
+            <thead>
+                <tr style="background-color: #f4f6f8; border-bottom: 2px solid #ddd;">
+                    <th style="text-align: left; padding: 8px; font-weight: 600;">Option Name</th>
+                    <th style="text-align: left; padding: 8px; font-weight: 600;">Transport</th>
+                    <th style="text-align: right; padding: 8px; font-weight: 600;">Price</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for option in package.package_options %}
+                <tr style="border-bottom: 1px solid #eee;">
+                    <td style="padding: 8px;"><strong>{{ option.name }}</strong>
+                        {% if option.description %}<br><span style="font-size: 10px; color: #666;">{{ option.description }}</span>{% endif %}
+                    </td>
+                    <td style="padding: 8px;">{{ option.vehicle_type }}</td>
+                    <td style="padding: 8px; text-align: right;">{{ option.amount }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
     <!-- ======== INCLUSIONS / EXCLUSIONS / AMENITIES / POLICIES ======== -->
     <div class="package-lists">
         {% if package.inclusions %}
@@ -515,8 +543,121 @@
             {% endif %}
         </div>
 
-        <!-- --- Hotel Details --- -->
-        {% if day.hotel_details %}
+        <!-- --- Hotel Details (Option-wise) --- -->
+        {% if package.package_options %}
+             <div class="details-section">
+                <h4><span style="font-size: 1.2em; vertical-align: middle;">🏨</span> Accommodation</h4>
+                
+                {% for option in package.package_options %}
+                    {% for mapping in option.hotel_mappings %}
+                        {% if mapping.day == day.day %}
+                            <!-- Check if we have detailed hotels for this option on this day -->
+                            {% if mapping.hotels_detailed %}
+                                <div style="margin-top: 10px; margin-bottom: 5px; border-bottom: 1px solid #eee; padding-bottom: 2px;">
+                                    <span style="font-size: 11px; font-weight: 700; color: #0d47a1; background: #e3f2fd; padding: 2px 6px; border-radius: 4px;">
+                                        Option: {{ option.name }}
+                                    </span>
+                                </div>
+
+                                {% for hotel in mapping.hotels_detailed %}
+                                <div class="detail-item" style="border-left: 3px solid #1976d2;">
+                                    <!-- Hotel Image (show first one) -->
+                                    {% for image in hotel.images %}
+                                        {% if forloop.first %}
+                                        <img src="{{ image.image_url }}" alt="{{ hotel.name }}"
+                                             onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                                        <!-- Fallback -->
+                                        <div class="img-placeholder" style="display:none;">Hotel Image</div>
+                                        {% endif %}
+                                    {% endfor %}
+                                    
+                                    <div class="info">
+                                        <strong>{{ hotel.name }}
+                                            {% if hotel.ratings %}
+                                            <span class="rating-stars">
+                                                <!-- Simple star rating logic -->
+                                                {% if hotel.ratings >= 1 %}★{% endif %}
+                                                {% if hotel.ratings >= 2 %}★{% endif %}
+                                                {% if hotel.ratings >= 3 %}★{% endif %}
+                                                {% if hotel.ratings >= 4 %}★{% endif %}
+                                                {% if hotel.ratings >= 5 %}★{% endif %}
+                                            </span>
+                                            {% endif %}
+                                        </strong>
+                                        <p>{{ hotel.location.address }}, {{ hotel.location.city }}</p>
+                                        <p>{{ hotel.description|safe }}</p>
+                                        
+                                        <!-- Hotel Image Gallery -->
+                                        {% if hotel.images|length > 1 %}
+                                        <div class="mini-gallery">
+                                            {% for image in hotel.images|slice:"1:7" %}
+                                                <img src="{{ image.image_url }}" alt="{{ hotel.name }} image"
+                                                     onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                                                <div class="img-placeholder" style="display:none;">img</div>
+                                            {% endfor %}
+                                        </div>
+                                        {% endif %}
+
+                                        <!-- Room Details from Snapshot -->
+                                        {% if hotel.selected_room_snapshot %}
+                                            <div class="room-list">
+                                                <h5>Selected Room:</h5>
+                                                <div class="room-item">
+                                                    <div>
+                                                        <strong>{{ hotel.selected_room_snapshot.name }}</strong> 
+                                                        ({{ hotel.selected_room_snapshot.type }})
+                                                        {% if hotel.room_quantity %} x {{ hotel.room_quantity }} Rooms{% endif %}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        {% elif hotel.selected_room_data %}
+                                            <div class="room-list">
+                                                <h5>Selected Room:</h5>
+                                                <div class="room-item">
+                                                    <div>
+                                                        <strong>{{ hotel.selected_room_data.name }}</strong> 
+                                                        ({{ hotel.selected_room_data.type }})
+                                                        {% if hotel.room_quantity %} x {{ hotel.room_quantity }} Rooms{% endif %}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                {% endfor %} <!-- End hotel loop -->
+
+                            {% endif %}
+                            
+                            <!-- Check for Quick Hotels -->
+                            {% if mapping.quick_hotels %}
+                                <div style="margin-top: 10px; margin-bottom: 5px; border-bottom: 1px solid #eee; padding-bottom: 2px;">
+                                    <span style="font-size: 11px; font-weight: 700; color: #0d47a1; background: #e3f2fd; padding: 2px 6px; border-radius: 4px;">
+                                        Option: {{ option.name }}
+                                    </span>
+                                </div>
+                                {% for q_hotel in mapping.quick_hotels %}
+                                    <div class="detail-item" style="border-left: 3px solid #1976d2;">
+                                        <div class="img-placeholder" style="width: 100px; height: 80px;">No Image</div>
+                                        <div class="info">
+                                            <strong>{{ q_hotel.hotel_name }} (Quick Hotel)</strong>
+                                            <p>{{ q_hotel.address }}</p>
+                                            <div class="room-list">
+                                                <div class="room-item">
+                                                    <strong>{{ q_hotel.room_type }}</strong>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            {% endif %}
+
+                        {% endif %}
+                    {% endfor %}
+                {% endfor %}
+             </div>
+        
+        <!-- Fallback if no options (Legacy/Simple package) -->
+        {% elif day.hotel_details %}
         <div class="details-section">
             <h4><span style="font-size: 1.2em; vertical-align: middle;">🏨</span> Hotel Details</h4>
             {% for hotel in day.hotel_details %}
@@ -550,12 +691,10 @@
                     <!-- NEW: Hotel Image Gallery -->
                     {% if hotel.images|length > 1 %}
                     <div class="mini-gallery">
-                        {% for image in hotel.images %}
-                            {% if not forloop.first %} <!-- Skip the first image (already shown) -->
+                        {% for image in hotel.images|slice:"1:7" %}
                             <img src="{{ image.image_url }}" alt="{{ hotel.name }} image"
                                  onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
                             <div class="img-placeholder" style="display:none;">img</div>
-                            {% endif %}
                         {% endfor %}
                     </div>
                     {% endif %}
