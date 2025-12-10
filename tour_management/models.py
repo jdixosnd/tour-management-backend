@@ -169,7 +169,8 @@ class Location(models.Model):
     lat = models.DecimalField(max_digits=10, decimal_places=7, blank=True, null=True)
     created_at = models.DateTimeField(auto_now=True)
     def __str__(self):
-        return self.name+"("+self.city+", "+self.state+", "+self.country+")"
+        parts = [p for p in [self.city, self.state, self.country] if p]
+        return f"{self.name}({', '.join(parts)})"
     def get_name(self):
         return self.name
     def get_lat_float(self):
