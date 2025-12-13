@@ -1,4 +1,5 @@
 from django.db import models
+import uuid
 
 # Create your models here.
 # This is an auto-generated Django model module.
@@ -58,6 +59,7 @@ USER_ROLES = (
 )
 class Touroperator(models.Model):
     id = models.BigAutoField(primary_key=True)
+    uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     name = models.CharField(max_length=255)
     email = models.CharField(unique=True, max_length=300)
     phone_number = models.CharField(max_length=20, blank=True, null=True)
@@ -81,6 +83,7 @@ class Touroperator(models.Model):
 
 class User(models.Model):
     id = models.BigAutoField(primary_key=True)
+    uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     tour_operator_id = models.ForeignKey(Touroperator, blank=True, null=True,on_delete=models.CASCADE)
     name = models.CharField(max_length=255)
     email = models.CharField(unique=True, max_length=255)
@@ -103,6 +106,7 @@ class User(models.Model):
 
 class ContactInfo(models.Model):
     id = models.BigAutoField(primary_key=True)
+    uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     tour_operator = models.ForeignKey( Touroperator, blank=True, null=True, on_delete=models.CASCADE)
     created_by = models.ForeignKey(User, db_column='created_by', blank=True, null=True, on_delete=models.CASCADE)
     name = models.CharField(max_length=255, blank=True, null=True)
@@ -121,6 +125,7 @@ class ContactInfo(models.Model):
 
 class Amenity(models.Model):
     id = models.BigAutoField(primary_key=True)
+    uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     tour_operator = models.ForeignKey( Touroperator, blank=True, null=True, on_delete=models.CASCADE)
     created_by = models.ForeignKey(User, db_column='created_by', blank=True, null=True, on_delete=models.CASCADE)
     name = models.CharField(max_length=255, blank=True, null=True)
@@ -130,6 +135,7 @@ class Amenity(models.Model):
 
 class Inclusion(models.Model):
     id = models.BigAutoField(primary_key=True)
+    uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     tour_operator = models.ForeignKey( Touroperator, blank=True, null=True, on_delete=models.CASCADE)
     created_by = models.ForeignKey(User, db_column='created_by', blank=True, null=True, on_delete=models.CASCADE)
     name = models.CharField(max_length=255, blank=True, null=True)
@@ -139,6 +145,7 @@ class Inclusion(models.Model):
 
 class Exclusion(models.Model):
     id = models.BigAutoField(primary_key=True)
+    uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     tour_operator = models.ForeignKey( Touroperator, blank=True, null=True, on_delete=models.CASCADE)
     created_by = models.ForeignKey(User, db_column='created_by', blank=True, null=True, on_delete=models.CASCADE)
     name = models.CharField(max_length=255, blank=True, null=True)
@@ -148,6 +155,7 @@ class Exclusion(models.Model):
 
 class Policy(models.Model):
     id = models.BigAutoField(primary_key=True)
+    uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     tour_operator = models.ForeignKey( Touroperator, blank=True, null=True, on_delete=models.CASCADE)
     created_by = models.ForeignKey(User, db_column='created_by', blank=True, null=True, on_delete=models.CASCADE)
     name = models.CharField(max_length=255, blank=True, null=True)
@@ -157,6 +165,7 @@ class Policy(models.Model):
 
 class Location(models.Model):
     id = models.BigAutoField(primary_key=True)
+    uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     tour_operator = models.ForeignKey( Touroperator, blank=True, null=True, on_delete=models.CASCADE)
     created_by = models.ForeignKey(User, db_column='created_by', blank=True, null=True, on_delete=models.CASCADE)
     city = models.CharField(max_length=255, blank=True, null=True)
@@ -185,6 +194,7 @@ class Location(models.Model):
 
 class Cardealer(models.Model):
     id = models.BigAutoField(primary_key=True)
+    uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     location = models.ForeignKey( Location, blank=True, null=True, on_delete=models.CASCADE)
     tour_operator = models.ForeignKey(Touroperator, blank=True, null=True, on_delete=models.CASCADE)
     created_by = models.ForeignKey(User, blank=True, null=True, on_delete=models.CASCADE)
@@ -219,6 +229,7 @@ class Cardealer(models.Model):
 
 class CarType(models.Model):
     id = models.BigAutoField(primary_key=True)
+    uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     tour_operator = models.ForeignKey(Touroperator, blank=True, null=True, on_delete=models.CASCADE)
     car_dealer = models.ForeignKey(Cardealer, blank=True, null=True, on_delete=models.CASCADE)
     name = models.CharField(max_length=255)
@@ -228,6 +239,7 @@ class CarType(models.Model):
 
 class Destination(models.Model):
     id = models.BigAutoField(primary_key=True)
+    uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     tour_operator_id = models.ForeignKey( Touroperator, blank=True, null=True, on_delete=models.CASCADE)
     created_by =  models.ForeignKey( User, blank=True, null=True, on_delete=models.CASCADE)
     #location_id = models.ForeignKey( Location, blank=True, null=True, on_delete=models.CASCADE)
@@ -270,6 +282,7 @@ class Destination(models.Model):
 
 class StateCity(models.Model):
     id = models.BigAutoField(primary_key=True)
+    uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     state = models.CharField(max_length=255)
     city = models.CharField(max_length=255)
     def __str__(self):
@@ -277,12 +290,14 @@ class StateCity(models.Model):
 
 class StateCityToDestinationMapping(models.Model):
     id = models.BigAutoField(primary_key=True)
+    uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     state_city = models.ForeignKey( StateCity, on_delete=models.CASCADE)
     destination =models.ForeignKey( Destination, on_delete=models.CASCADE)
     location = models.ForeignKey( Location, blank=True, null=True, on_delete=models.CASCADE)  # Link to actual Location object
 
 class Event(models.Model):
     id = models.BigAutoField(primary_key=True)
+    uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     location = models.ForeignKey( Location, blank=True, null=True, on_delete=models.CASCADE)#EXACT LOCATION WHERE EVENT OCCURS
     tour_operator = models.ForeignKey( Touroperator, blank=True, null=True, on_delete=models.CASCADE)
     created_by = models.ForeignKey(User, blank=True, null=True, on_delete=models.CASCADE)
@@ -319,6 +334,7 @@ class Event(models.Model):
 
 class SightSeeing(models.Model):
     id = models.BigAutoField(primary_key=True)
+    uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     location = models.ForeignKey( Location, blank=True, null=True, on_delete=models.CASCADE)#EXACT LOCATION WHERE EVENT OCCURS
     tour_operator = models.ForeignKey( Touroperator, blank=True, null=True, on_delete=models.CASCADE)
     created_by = models.ForeignKey(User, blank=True, null=True, on_delete=models.CASCADE)
@@ -355,6 +371,7 @@ class SightSeeing(models.Model):
 
 class Hotel(models.Model):
     id = models.BigAutoField(primary_key=True)
+    uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     location = models.ForeignKey(Location, blank=True, null=True, on_delete=models.CASCADE)
     tour_operator = models.ForeignKey(Touroperator , blank=True, null=True, on_delete=models.CASCADE)
     created_by = models.ForeignKey(User, blank=True, null=True, on_delete=models.CASCADE)
@@ -394,6 +411,7 @@ class Hotel(models.Model):
 
 class Room(models.Model):
     id = models.BigAutoField(primary_key=True)
+    uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     name = models.CharField(max_length=100, blank=True, null=True)
     hotel = models.ForeignKey(Hotel, blank=True, null=True, on_delete=models.CASCADE)
     tour_operator = models.ForeignKey(Touroperator , blank=True, null=True, on_delete=models.CASCADE)
@@ -440,6 +458,7 @@ class QuickHotel(models.Model):
     for hotels found on-the-fly for specific packages.
     """
     id = models.BigAutoField(primary_key=True)
+    uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     tour_operator = models.ForeignKey(Touroperator, on_delete=models.CASCADE)
     created_by = models.ForeignKey(User, on_delete=models.CASCADE)
 
@@ -465,6 +484,7 @@ class QuickHotel(models.Model):
 
 class Package(models.Model):
     id = models.BigAutoField(primary_key=True)
+    uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     destination = models.ForeignKey(Destination, blank=True, null=True, on_delete=models.CASCADE)
     tour_operator = models.ForeignKey(Touroperator , blank=True, null=True, on_delete=models.CASCADE)
     created_by = models.ForeignKey(User, blank=True, null=True, on_delete=models.CASCADE)
@@ -509,6 +529,7 @@ class Package(models.Model):
 
 class DestinationPackageMapping(models.Model):
     id = models.BigAutoField(primary_key=True)
+    uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     tour_operator_id = models.ForeignKey( Touroperator, blank=True, null=True, on_delete=models.CASCADE)
     package_id = models.ForeignKey( Package, blank=True, null=True, on_delete=models.CASCADE)
     destination_id = models.ForeignKey( Destination, blank=True, null=True, on_delete=models.CASCADE)
@@ -523,6 +544,7 @@ class DestinationPackageMapping(models.Model):
 
 class Itineraryitem(models.Model):
     id = models.BigAutoField(primary_key=True)
+    uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     tour_operator_id = models.ForeignKey(Touroperator , blank=True, null=True, on_delete=models.CASCADE)
     destination = models.ForeignKey(Destination,  blank=True, null=True, on_delete=models.CASCADE)
     city = models.CharField(max_length=255, blank=True, null=True)
@@ -560,6 +582,7 @@ class Itineraryitem(models.Model):
 
 class Packageitineraryitem(models.Model):
     id = models.BigAutoField(primary_key=True)
+    uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     package = models.ForeignKey(Package, blank=True, null=True, on_delete=models.CASCADE)
     itinerary_item = models.ForeignKey(Itineraryitem, blank=True, null=True, on_delete=models.CASCADE)
     created_by = models.ForeignKey(User, blank=True, null=True, on_delete=models.CASCADE)
@@ -578,6 +601,7 @@ class Packageitineraryitem(models.Model):
 
 class PackageHotelMapping(models.Model):
     id = models.BigAutoField(primary_key=True)
+    uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     package = models.ForeignKey(Package, on_delete=models.CASCADE)
     hotel = models.ForeignKey(Hotel, on_delete=models.CASCADE)
     day = models.IntegerField()
@@ -592,6 +616,7 @@ class PackageHotelMapping(models.Model):
 
 class PackageCarDealerMapping(models.Model):
     id = models.BigAutoField(primary_key=True)
+    uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     package = models.ForeignKey(Package, on_delete=models.CASCADE)
     car_dealer = models.ForeignKey(Cardealer, on_delete=models.CASCADE)
     day = models.IntegerField()
@@ -611,6 +636,7 @@ class PackageOption(models.Model):
     Each option has its own price and hotel selections for each day.
     """
     id = models.BigAutoField(primary_key=True)
+    uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     package = models.ForeignKey(Package, related_name='options', on_delete=models.CASCADE)
     name = models.CharField(max_length=100)  # e.g., 'Standard', 'Deluxe', 'Premium'
     amount = models.DecimalField(max_digits=15, decimal_places=2)  # Price for this option
@@ -636,6 +662,7 @@ class PackageOptionHotelMapping(models.Model):
     Can reference either a regular Hotel OR a QuickHotel (one must be set, not both).
     """
     id = models.BigAutoField(primary_key=True)
+    uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     package_option = models.ForeignKey(PackageOption, related_name='hotel_mappings', on_delete=models.CASCADE)
 
     # Either hotel OR quick_hotel must be set (not both)
@@ -676,6 +703,7 @@ class PackageOptionCarDealerMapping(models.Model):
     This allows different options to have different transport selections for the same day.
     """
     id = models.BigAutoField(primary_key=True)
+    uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     package_option = models.ForeignKey(PackageOption, related_name='transport_mappings', on_delete=models.CASCADE)
     car_dealer = models.ForeignKey(Cardealer, on_delete=models.CASCADE)
     day = models.IntegerField()  # Day number matching the itinerary
@@ -693,6 +721,7 @@ class PackageOptionCarDealerMapping(models.Model):
 
 class Customer(models.Model):
     id = models.BigAutoField(primary_key=True)
+    uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     tour_operator = models.ForeignKey( Touroperator, blank=True, null=True, on_delete=models.PROTECT)
     name = models.CharField(max_length=45, blank=True, null=True)
     phone = models.CharField(max_length=15, blank=True, null=True)
@@ -706,7 +735,8 @@ class Customer(models.Model):
 
 ######################################################      LEAD RELATED TABLES          #####################################################################
 class Lead(models.Model):
-    id = models.BigAutoField(primary_key=True),
+    id = models.BigAutoField(primary_key=True)
+    uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     tour_operator = models.ForeignKey(Touroperator, blank=True, null=True, on_delete=models.PROTECT)
     created_by = models.ForeignKey(User, blank=True, null=True,on_delete=models.PROTECT)
     customer = models.ForeignKey(Customer, on_delete=models.PROTECT)
@@ -722,6 +752,7 @@ class Lead(models.Model):
 
 class LeadPackage(models.Model):
     id = models.BigAutoField(primary_key=True)
+    uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     lead = models.ForeignKey(Lead, on_delete=models.PROTECT)
     destination = models.ForeignKey(Destination, blank=True, null=True, on_delete=models.PROTECT)
     tour_operator = models.ForeignKey(Touroperator, blank=True, null=True, on_delete=models.PROTECT)
@@ -753,6 +784,7 @@ class LeadPackage(models.Model):
 
 class LeadDestinationMapping(models.Model):
     id = models.BigAutoField(primary_key=True)
+    uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     lead_package = models.ForeignKey(LeadPackage, on_delete=models.PROTECT)
     tour_operator = models.ForeignKey(Touroperator, blank=True, null=True, on_delete=models.PROTECT)
 
@@ -770,6 +802,7 @@ class LeadDestinationMapping(models.Model):
 
 class LeadItineraryItem(models.Model):
     id = models.BigAutoField(primary_key=True)
+    uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     lead_package = models.ForeignKey(LeadPackage, on_delete=models.PROTECT)
     itinerary_item = models.ForeignKey(Itineraryitem, blank=True, null=True, on_delete=models.PROTECT)
     created_by = models.ForeignKey(User, blank=True, null=True,on_delete=models.PROTECT)
@@ -783,6 +816,7 @@ class LeadItineraryItem(models.Model):
 
 class LeadHotelMapping(models.Model):
     id = models.BigAutoField(primary_key=True)
+    uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     lead_package = models.ForeignKey(LeadPackage, on_delete=models.PROTECT)
     tour_operator = models.ForeignKey(Touroperator, blank=True, null=True, on_delete=models.PROTECT)
 
@@ -795,6 +829,7 @@ class LeadHotelMapping(models.Model):
 
 class LeadCarDealerMapping(models.Model):
     id = models.BigAutoField(primary_key=True)
+    uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     lead_package = models.ForeignKey(LeadPackage, on_delete=models.PROTECT)
     tour_operator = models.ForeignKey(Touroperator, blank=True, null=True, on_delete=models.PROTECT)
 
@@ -813,6 +848,7 @@ class LeadPackageOption(models.Model):
     This is a snapshot - changes to the original PackageOption won't affect this.
     """
     id = models.BigAutoField(primary_key=True)
+    uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     lead_package = models.ForeignKey(LeadPackage, related_name='package_options', on_delete=models.PROTECT)
     name = models.CharField(max_length=100)  # e.g., 'Standard', 'Deluxe', 'Premium'
     amount = models.DecimalField(max_digits=15, decimal_places=2)  # Price for this option
@@ -838,6 +874,7 @@ class LeadPackageOptionHotelMapping(models.Model):
     Can reference either a regular Hotel OR store QuickHotel data as JSON snapshot.
     """
     id = models.BigAutoField(primary_key=True)
+    uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     lead_package_option = models.ForeignKey(LeadPackageOption, related_name='hotel_mappings', on_delete=models.PROTECT)
 
     # Either hotel OR quick_hotel_data must be set (not both)
@@ -882,6 +919,7 @@ class LeadPackageOptionCarDealerMapping(models.Model):
     This is a snapshot - changes to the original car dealer won't affect this.
     """
     id = models.BigAutoField(primary_key=True)
+    uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     lead_package_option = models.ForeignKey(LeadPackageOption, related_name='transport_mappings', on_delete=models.PROTECT)
     car_dealer = models.ForeignKey(Cardealer, on_delete=models.PROTECT)
     day = models.IntegerField()  # Day number matching the itinerary
@@ -916,6 +954,7 @@ class Transaction(models.Model):
     ]
 
     id = models.BigAutoField(primary_key=True)
+    uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
 
     # Reference to lead (contains all package options offered to customer)
     lead = models.ForeignKey('Lead', on_delete=models.PROTECT)
@@ -980,6 +1019,7 @@ class TransactionItineraryItem(models.Model):
     Each day has ONE selected hotel and ONE selected transport (chosen from lead's multiple options).
     """
     id = models.BigAutoField(primary_key=True)
+    uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     transaction = models.ForeignKey(Transaction, related_name="itinerary_items", on_delete=models.PROTECT)
     day = models.IntegerField()
 
@@ -1122,6 +1162,7 @@ class CompanyProfile(models.Model):
     Managers can update, all users can view.
     """
     id = models.BigAutoField(primary_key=True)
+    uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     tour_operator = models.OneToOneField(Touroperator, on_delete=models.CASCADE, related_name='company_profile')
 
     # Basic Company Information

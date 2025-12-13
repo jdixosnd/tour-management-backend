@@ -28,17 +28,17 @@ def get_packages_from_destination(request):
         if not tour_operator_id:
             return JsonResponse({"error": "tour_operator_id is required."}, status=400)
         
-        packages = Package.objects.filter(tour_operator_id=tour_operator_id).order_by('-updated_at')
+        packages = Package.objects.filter(tour_operator__uuid=tour_operator_id).order_by('-updated_at')
         if not destination_id:
             return JsonResponse({"error": "destination_id is required."}, status=400)
         
-        packages = packages.filter(tour_operator_id=tour_operator_id,destination_id=destination_id)
+        packages = packages.filter(tour_operator__uuid=tour_operator_id,destination__uuid=destination_id)
         paginator = PageNumberPagination()
         paginator.page_size = 10
         paginated_packages = paginator.paginate_queryset(packages, Request(request))
         for package in paginated_packages:
             # Get package images
-            package_images = get_images('package', package.id, include_binary=False)
+            package_images = get_images('package', str(package.uuid), include_binary=False)
 
             # Get package options with hotel mappings
             package_options_data = []
@@ -71,11 +71,11 @@ def get_packages_from_destination(request):
                 })
 
             result.append({
-                "id": package.id,
+                "id": str(package.uuid),
                 "created_at": package.created_at.isoformat() if package.created_at else None,
                 "updated_at": package.updated_at.isoformat() if package.updated_at else None,
                 "name": package.name,
-                "destination_id":package.destination_id,
+                "destination_id":str(package.destination.uuid),
                 "description": package.description,
                 "pax_size": package.pax_size,
                 "contains_travel_fare": package.contains_travel_fare,
@@ -127,9 +127,9 @@ def get_all_packages(request):
         return JsonResponse({"error": "tour_operator_id is required."}, status=400)
 
     try:
-        packages = Package.objects.filter(tour_operator_id=tour_operator_id)
+        packages = Package.objects.filter(tour_operator__uuid=tour_operator_id)
         if destination_id:
-            packages = packages.filter(destination_id=destination_id)
+            packages = packages.filter(destination__uuid=destination_id)
         packages = packages.order_by('-updated_at')
 
         # Apply manual pagination only when page is provided
@@ -157,7 +157,7 @@ def get_all_packages(request):
 
         packages_data = []
         for package in packages:
-            package_images = get_images('package', package.id, include_binary=False)
+            package_images = get_images('package', str(package.uuid), include_binary=False)
             images = [
                 {
                     "id": image.get("id"),
@@ -208,7 +208,7 @@ def get_all_packages(request):
                     })
 
             packages_data.append({
-                "id": package.id,
+                "id": str(package.uuid),
                 "created_at": package.created_at.isoformat() if package.created_at else None,
                 "updated_at": package.updated_at.isoformat() if package.updated_at else None,
                 "name": package.name,
@@ -239,11 +239,11 @@ def get_package(request):
             return JsonResponse({"error": "tour_operator_id is required."}, status=400)
 
         # Fetch packages based on filters
-        packages = Package.objects.filter(tour_operator_id=tour_operator_id)
+        packages = Package.objects.filter(tour_operator__uuid=tour_operator_id)
         if destination_id:
-            packages = packages.filter(destination_id=destination_id)
+            packages = packages.filter(destination__uuid=destination_id)
         if package_id:
-            packages = packages.filter(id=package_id)
+            packages = packages.filter(uuid=package_id)
         packages = packages.order_by('-updated_at')
 
         # Apply pagination
@@ -267,19 +267,19 @@ def get_package(request):
 
                 # Get only hotels mapped to this package and tour operator
                 hotels_in_package = PackageHotelMapping.objects.filter(
-                    package=package, tour_operator_id=tour_operator_id, hotel__location__city=destination.city,day = destination.day
+                    package=package, tour_operator__uuid=tour_operator_id, hotel__location__city=destination.city,day = destination.day
                 ).select_related('hotel')
 
                 hotel_data = {
                     "day": destination.day,
                     "city": destination.city,
-                    "hotels": [get_hotel_by_id(hotel_mapping.hotel.id) for hotel_mapping in hotels_in_package]
+                    "hotels": [get_hotel_by_id(str(hotel_mapping.hotel.uuid)) for hotel_mapping in hotels_in_package]
                 }
                 hotel_details.append(hotel_data)
 
                 # Get only car dealers mapped to this package and tour operator
                 cardealers_in_package = PackageCarDealerMapping.objects.filter(
-                    package=package, tour_operator_id=tour_operator_id, car_dealer__location__city=destination.city,day = destination.day
+                    package=package, tour_operator__uuid=tour_operator_id, car_dealer__location__city=destination.city,day = destination.day
                 ).select_related('car_dealer')
 
                 cardealer_data = {
@@ -287,7 +287,7 @@ def get_package(request):
                     "city": destination.city,
                     "cardealer": [
                         {
-                            "id": dealer_mapping.car_dealer.id,
+                            "id": str(dealer_mapping.car_dealer.uuid),
                             "dealer_name": dealer_mapping.car_dealer.name,
                             "contact_no": dealer_mapping.car_dealer.contact_no,
                             "transport_types": get_transportdetails_from_db(dealer_mapping.car_dealer.id)
@@ -311,9 +311,9 @@ def get_package(request):
                 if itinerary:
                     if itinerary.location is not None:
                         location = {
-                             "id": itinerary.location.id,
-                            "tour_operator_id": itinerary.location.tour_operator.id,
-                            "created_by_id": itinerary.location.created_by.id,
+                             "id": str(itinerary.location.uuid),
+                            "tour_operator_id": str(itinerary.location.tour_operator.uuid),
+                            "created_by_id": str(itinerary.location.created_by.uuid),
                             "city": itinerary.location.city,
                             "state": itinerary.location.state,
                             "country": itinerary.location.country,
@@ -327,7 +327,7 @@ def get_package(request):
                         location = {}
 
                     # Fetch itinerary item images (same pattern as hotels)
-                    itinerary_item_images = get_images('itinerary_item', pii.itinerary_item.id, include_binary=False)
+                    itinerary_item_images = get_images('itinerary_item', str(pii.itinerary_item.uuid), include_binary=False)
 
                     itinerary_details[pii.day].append({
                         "name": itinerary.name,
@@ -338,7 +338,7 @@ def get_package(request):
                         "sequence": pii.sequence,
                         "location": location,
                         "images": itinerary_item_images,
-                        "itinerary_item_id": pii.itinerary_item.id
+                        "itinerary_item_id": str(pii.itinerary_item.uuid)
                     })
                 else:
                     itinerary_details[pii.day] = []
@@ -371,16 +371,16 @@ def get_package(request):
 
             # Get inclusions and exclusions for the package
             package_inclusions = [
-                {"id": inc.id, "name": inc.name, "description": inc.description}
+                {"id": str(inc.uuid), "name": inc.name, "description": inc.description}
                 for inc in Inclusion.objects.filter(type="package", type_id=package.id)
             ]
             package_exclusions = [
-                {"id": exc.id, "name": exc.name, "description": exc.description}
+                {"id": str(exc.uuid), "name": exc.name, "description": exc.description}
                 for exc in Exclusion.objects.filter(type="package", type_id=package.id)
             ]
 
             # Get package images
-            package_images = get_images('package', package.id, include_binary=False)
+            package_images = get_images('package', str(package.uuid), include_binary=False)
 
             # Get package options with hotel mappings
             package_options_data = []
@@ -445,11 +445,11 @@ def get_package(request):
 
             # Structure final package data
             package_data = {
-                "id": package.id,
+                "id": str(package.uuid),
                 "created_at": package.created_at.isoformat() if package.created_at else None,
                 "updated_at": package.updated_at.isoformat() if package.updated_at else None,
                 "name": package.name,
-                "destination_id":package.destination_id,
+                "destination_id":str(package.destination.uuid),
                 "description": package.description,
                 "pax_size": package.pax_size,
                 "contains_travel_fare": package.contains_travel_fare,
@@ -528,9 +528,9 @@ def add_package(request):
         try:
             with transaction.atomic():
                 # Create Package
-                tour_operator = Touroperator.objects.get(id=data['tour_operator_id'])
-                created_by = User.objects.get(id=data['created_by'])
-                destination = Destination.objects.get(id=data['destination_id'])
+                tour_operator = Touroperator.objects.get(uuid=data['tour_operator_id'])
+                created_by = User.objects.get(uuid=data['created_by'])
+                destination = Destination.objects.get(uuid=data['destination_id'])
                 
                 package = Package.objects.create(
                     tour_operator=tour_operator,
@@ -744,7 +744,7 @@ def add_package(request):
                 # Success response with package ID and summary
                 return JsonResponse({
                     "message": "Package created successfully",
-                    "package_id": package.id
+                    "package_id": str(package.uuid)
 
                 }, status=201)
 
@@ -776,10 +776,10 @@ def update_package(request):
         try:
             with transaction.atomic():
                 # Retrieve existing Package
-                package = Package.objects.get(id=data['id'], tour_operator_id=data['tour_operator_id'])
-                tour_operator = Touroperator.objects.get(id=data['tour_operator_id'])
-                created_by = User.objects.get(id=data['created_by'])
-                destination = Destination.objects.get(id=data['destination_id'])
+                package = Package.objects.get(uuid=data['id'], tour_operator__uuid=data['tour_operator_id'])
+                tour_operator = Touroperator.objects.get(uuid=data['tour_operator_id'])
+                created_by = User.objects.get(uuid=data['created_by'])
+                destination = Destination.objects.get(uuid=data['destination_id'])
 
                 # Update package details
                 package.name = data['name']
@@ -1004,7 +1004,7 @@ def update_package(request):
                 # Success response with package ID and summary
                 return JsonResponse({
                     "message": "Package updated successfully",
-                    "package_id": package.id
+                    "package_id": str(package.uuid)
                 }, status=200)
 
         except Package.DoesNotExist:
@@ -1060,14 +1060,14 @@ def delete_package(request):
 
         # Get the package and verify it belongs to the tour operator
         try:
-            package = Package.objects.get(id=package_id)
+            package = Package.objects.get(uuid=package_id)
         except Package.DoesNotExist:
             return JsonResponse(
                 {"error": "Package not found."},
                 status=404
             )
 
-        if package.tour_operator.id != tour_operator_id:
+        if package.tour_operator.uuid != tour_operator_id:
             return JsonResponse(
                 {"error": "Package does not belong to the specified tour operator."},
                 status=403

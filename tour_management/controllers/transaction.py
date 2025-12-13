@@ -44,9 +44,9 @@ def add_transaction_old(request):
         try:
             with transaction.atomic():
                 # Get and validate the main entities
-                customer = Customer.objects.get(id=data['customer_id'], tour_operator=data['tour_operator'])
-                created_by = User.objects.get(id=data['created_by'])
-                tour_operator = Touroperator.objects.get(id=data['tour_operator'])
+                customer = Customer.objects.get(uuid=data['customer_id'], tour_operator__uuid=data['tour_operator'])
+                created_by = User.objects.get(uuid=data['created_by'])
+                tour_operator = Touroperator.objects.get(uuid=data['tour_operator'])
 
                 # Get package snapshot from request
                 pkg_snapshot = data['package_snapshot']
@@ -55,9 +55,9 @@ def add_transaction_old(request):
                 package = None
                 destination = None
                 if pkg_snapshot.get('id'):
-                    package = Package.objects.filter(id=pkg_snapshot['id'], tour_operator=tour_operator).first()
+                    package = Package.objects.filter(uuid=pkg_snapshot['id'], tour_operator=tour_operator).first()
                 if pkg_snapshot.get('destination_id'):
-                    destination = Destination.objects.filter(id=pkg_snapshot['destination_id'], tour_operator_id=tour_operator).first()
+                    destination = Destination.objects.filter(uuid=pkg_snapshot['destination_id'], tour_operator=tour_operator).first()
 
                 # Create the Transaction snapshot with all package data
                 transaction_instance = Transaction.objects.create(
@@ -109,7 +109,7 @@ def add_transaction_old(request):
                     hotel = None
                     room = None
                     if hotel_data.get('id'):
-                        hotel = Hotel.objects.filter(id=hotel_data['id']).first()
+                        hotel = Hotel.objects.filter(uuid=hotel_data['id']).first()
 
                     # Get selected room from hotel rooms
                     room_data = hotel_data.get("room", {})
@@ -118,7 +118,7 @@ def add_transaction_old(request):
                         room_data = hotel_data["rooms"][selected_room_idx] if selected_room_idx < len(hotel_data["rooms"]) else hotel_data["rooms"][0]
 
                     if room_data.get('id'):
-                        room = Room.objects.filter(id=room_data['id']).first()
+                        room = Room.objects.filter(uuid=room_data['id']).first()
 
                     # Process car dealer details
                     car_dealers_list = day_detail.get("car_dealers", [])
@@ -132,7 +132,7 @@ def add_transaction_old(request):
                         car_dealer_data = car_dealers_list[selected_dealer_idx] if selected_dealer_idx < len(car_dealers_list) else car_dealers_list[0]
 
                         if car_dealer_data.get('id'):
-                            car_dealer = Cardealer.objects.filter(id=car_dealer_data['id']).first()
+                            car_dealer = Cardealer.objects.filter(uuid=car_dealer_data['id']).first()
 
                         car_dealer_transport_types = car_dealer_data.get("transport_types", [])
 
@@ -161,7 +161,7 @@ def add_transaction_old(request):
                         hotel_ratings=hotel_data.get("ratings"),
                         hotel_phoneno=hotel_data.get("phoneno", ""),
                         hotel_website=hotel_data.get("website", ""),
-                        hotel_location_id=Location.objects.filter(id=location_data.get("id")).first() if location_data.get("id") else None,
+                        hotel_location_id=Location.objects.filter(uuid=location_data.get("id")).first() if location_data.get("id") else None,
                         hotel_location_name=location_data.get("name", ""),
                         hotel_location_address=location_data.get("address", ""),
                         hotel_location_city=location_data.get("city", ""),
@@ -204,7 +204,7 @@ def add_transaction_old(request):
                         # Get location reference if ID is provided
                         location_id = None
                         if location_data.get("id"):
-                            location_id = Location.objects.filter(id=location_data["id"]).first()
+                            location_id = Location.objects.filter(uuid=location_data["id"]).first()
 
                         TransactionItineraryDetails.objects.create(
                             transaction_day=day_instance,
@@ -233,7 +233,7 @@ def add_transaction_old(request):
                 # Success response with transaction ID
                 return JsonResponse({
                     "message": "Transaction created successfully",
-                    "transaction_id": transaction_instance.id
+                    "transaction_id": str(transaction_instance.uuid)
                 }, status=201)
 
         except Customer.DoesNotExist:
@@ -273,13 +273,13 @@ def get_transaction_old(request):
         transaction_id = data.get('transaction_id')
 
         try:
-            transaction = Transaction.objects.get(id=transaction_id)
+            transaction = Transaction.objects.get(uuid=transaction_id)
 
             # Build package snapshot structure matching package API response
             package_snapshot = {
-                "id": transaction.package.id if transaction.package else None,
+                "id": str(transaction.package.uuid) if transaction.package else None,
                 "name": transaction.package_name,
-                "destination_id": transaction.destination.id if transaction.destination else None,
+                "destination_id": str(transaction.destination.uuid) if transaction.destination else None,
                 "description": transaction.package_description,
                 "pax_size": transaction.pax_size,
                 "contains_travel_fare": transaction.contains_travel_fare,
@@ -297,10 +297,10 @@ def get_transaction_old(request):
 
             # Build transaction-specific data
             response_data = {
-                "transaction_id": transaction.id,
-                "customer_id": transaction.customer.id,
-                "created_by": transaction.created_by.id,
-                "tour_operator": transaction.tour_operator.id,
+                "transaction_id": str(transaction.uuid),
+                "customer_id": str(transaction.customer.uuid),
+                "created_by": str(transaction.created_by.uuid),
+                "tour_operator": str(transaction.tour_operator.uuid),
                 "proposed_package_amount": float(transaction.proposed_package_amount),
                 "original_package_amount": float(transaction.original_package_amount),
                 "discount_amount": float(transaction.discount_amount),
@@ -315,14 +315,14 @@ def get_transaction_old(request):
             for day_detail in transaction.day_details.all().order_by('day'):
                 # Build hotel details with complete snapshot
                 hotel_data = {
-                    "id": day_detail.hotel.id if day_detail.hotel else None,
+                    "id": str(day_detail.hotel.uuid) if day_detail.hotel else None,
                     "name": day_detail.hotel_name,
                     "description": day_detail.hotel_description,
                     "ratings": float(day_detail.hotel_ratings) if day_detail.hotel_ratings else None,
                     "phoneno": day_detail.hotel_phoneno,
                     "website": day_detail.hotel_website,
                     "location": {
-                        "id": day_detail.hotel_location_id.id if day_detail.hotel_location_id else None,
+                        "id": str(day_detail.hotel_location_id.uuid) if day_detail.hotel_location_id else None,
                         "name": day_detail.hotel_location_name,
                         "address": day_detail.hotel_location_address,
                         "city": day_detail.hotel_location_city,
@@ -335,7 +335,7 @@ def get_transaction_old(request):
                     "policies": day_detail.hotel_policies or [],
                     "images": day_detail.hotel_images or [],
                     "rooms": [{
-                        "id": day_detail.room.id if day_detail.room else None,
+                        "id": str(day_detail.room.uuid) if day_detail.room else None,
                         "name": day_detail.room_name,
                         "type": day_detail.room_type,
                         "capacity": day_detail.room_capacity,
@@ -351,7 +351,7 @@ def get_transaction_old(request):
 
                 # Build car dealer details
                 car_dealer_data = {
-                    "id": day_detail.car_dealer.id if day_detail.car_dealer else None,
+                    "id": str(day_detail.car_dealer.uuid) if day_detail.car_dealer else None,
                     "dealer_name": day_detail.car_dealer_name,
                     "contact_no": day_detail.car_dealer_contact,
                     "location": {
@@ -386,7 +386,7 @@ def get_transaction_old(request):
                         "sequence": itinerary.sequence or 0,
                         "itinerary_item_id": itinerary.itinerary_item_id,
                         "location": {
-                            "id": itinerary.location_id.id if itinerary.location_id else None,
+                            "id": str(itinerary.location_id.uuid) if itinerary.location_id else None,
                             "tour_operator_id": itinerary.location_tour_operator_id,
                             "created_by_id": itinerary.location_created_by_id,
                             "city": itinerary.location_city,
@@ -440,19 +440,19 @@ def update_transaction_old(request):
         try:
             with transaction.atomic():
                 # Get existing transaction
-                transaction_instance = Transaction.objects.get(id=data['transaction_id'])
+                transaction_instance = Transaction.objects.get(uuid=data['transaction_id'])
 
                 # Update customer, created_by, tour_operator if provided
                 if data.get('customer_id'):
-                    customer = Customer.objects.get(id=data['customer_id'])
+                    customer = Customer.objects.get(uuid=data['customer_id'])
                     transaction_instance.customer = customer
 
                 if data.get('created_by'):
-                    created_by = User.objects.get(id=data['created_by'])
+                    created_by = User.objects.get(uuid=data['created_by'])
                     transaction_instance.created_by = created_by
 
                 if data.get('tour_operator'):
-                    tour_operator = Touroperator.objects.get(id=data['tour_operator'])
+                    tour_operator = Touroperator.objects.get(uuid=data['tour_operator'])
                     transaction_instance.tour_operator = tour_operator
 
                 # Update transaction-specific fields
@@ -474,12 +474,12 @@ def update_transaction_old(request):
                     pkg_snapshot = data['package_snapshot']
 
                     # Update package and destination references if IDs changed
-                    if pkg_snapshot.get('id') and (not transaction_instance.package or transaction_instance.package.id != pkg_snapshot['id']):
-                        package = Package.objects.filter(id=pkg_snapshot['id']).first()
+                    if pkg_snapshot.get('id') and (not transaction_instance.package or transaction_instance.package.uuid != pkg_snapshot['id']):
+                        package = Package.objects.filter(uuid=pkg_snapshot['id']).first()
                         transaction_instance.package = package
 
-                    if pkg_snapshot.get('destination_id') and (not transaction_instance.destination or transaction_instance.destination.id != pkg_snapshot['destination_id']):
-                        destination = Destination.objects.filter(id=pkg_snapshot['destination_id']).first()
+                    if pkg_snapshot.get('destination_id') and (not transaction_instance.destination or transaction_instance.destination.uuid != pkg_snapshot['destination_id']):
+                        destination = Destination.objects.filter(uuid=pkg_snapshot['destination_id']).first()
                         transaction_instance.destination = destination
 
                     # Update package snapshot fields
@@ -540,7 +540,7 @@ def update_transaction_old(request):
                         hotel = None
                         room = None
                         if hotel_data.get('id'):
-                            hotel = Hotel.objects.filter(id=hotel_data['id']).first()
+                            hotel = Hotel.objects.filter(uuid=hotel_data['id']).first()
 
                         # Get selected room
                         room_data = hotel_data.get("room", {})
@@ -549,7 +549,7 @@ def update_transaction_old(request):
                             room_data = hotel_data["rooms"][selected_room_idx] if selected_room_idx < len(hotel_data["rooms"]) else hotel_data["rooms"][0]
 
                         if room_data.get('id'):
-                            room = Room.objects.filter(id=room_data['id']).first()
+                            room = Room.objects.filter(uuid=room_data['id']).first()
 
                         # Process car dealer details
                         car_dealers_list = day_detail.get("car_dealers", [])
@@ -563,7 +563,7 @@ def update_transaction_old(request):
                             car_dealer_data = car_dealers_list[selected_dealer_idx] if selected_dealer_idx < len(car_dealers_list) else car_dealers_list[0]
 
                             if car_dealer_data.get('id'):
-                                car_dealer = Cardealer.objects.filter(id=car_dealer_data['id']).first()
+                                car_dealer = Cardealer.objects.filter(uuid=car_dealer_data['id']).first()
 
                             car_dealer_transport_types = car_dealer_data.get("transport_types", [])
 
@@ -590,7 +590,7 @@ def update_transaction_old(request):
                             hotel_ratings=hotel_data.get("ratings"),
                             hotel_phoneno=hotel_data.get("phoneno", ""),
                             hotel_website=hotel_data.get("website", ""),
-                            hotel_location_id=Location.objects.filter(id=location_data.get("id")).first() if location_data.get("id") else None,
+                            hotel_location_id=Location.objects.filter(uuid=location_data.get("id")).first() if location_data.get("id") else None,
                             hotel_location_name=location_data.get("name", ""),
                             hotel_location_address=location_data.get("address", ""),
                             hotel_location_city=location_data.get("city", ""),
@@ -632,7 +632,7 @@ def update_transaction_old(request):
                             # Get location reference if ID is provided
                             location_id = None
                             if location_data.get("id"):
-                                location_id = Location.objects.filter(id=location_data["id"]).first()
+                                location_id = Location.objects.filter(uuid=location_data["id"]).first()
 
                             TransactionItineraryDetails.objects.create(
                                 transaction_day=day_instance,
@@ -660,7 +660,7 @@ def update_transaction_old(request):
                 # Success response with transaction ID
                 return JsonResponse({
                     "message": "Transaction updated successfully",
-                    "transaction_id": transaction_instance.id
+                    "transaction_id": str(transaction_instance.uuid)
                 }, status=200)
 
         except Transaction.DoesNotExist:

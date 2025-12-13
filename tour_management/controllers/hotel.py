@@ -2,6 +2,7 @@ from __future__ import unicode_literals
 from django.http import HttpResponse, HttpResponseBadRequest
 import json
 from ..models import User, Touroperator, Location, Hotel, Room, QuickHotel, Amenity, Inclusion, Exclusion, Policy, ImageMetadata, Package, Destination, Cardealer, Event, SightSeeing, LeadHotelMapping, PackageHotelMapping, PackageOptionHotelMapping
+import uuid
 from django.core.exceptions import ValidationError
 from django.core import serializers
 from django.http import JsonResponse
@@ -27,8 +28,8 @@ def add_hotel(request):
                     return JsonResponse({"error": "A hotel with this phone number already exists."}, status=409)
 
                 # Fetch related objects
-                touroperator = Touroperator.objects.get(id=data['tour_operator_id'])
-                user = User.objects.get(id=data['created_by'])
+                touroperator = Touroperator.objects.get(uuid=data['tour_operator_id'])
+                user = User.objects.get(uuid=data['created_by'])
 
                 # Handle location (reuse if exists or create a new one)
                 location_data = data['location']
@@ -109,7 +110,7 @@ def add_hotel(request):
 
                     # Collect room data for response, including shared items
                     room_response = {
-                        "id": room.id,
+                        "id": str(room.uuid),
                         "name": room.name,
                         "type": room.type,
                         "capacity": room.capacity,
@@ -126,7 +127,7 @@ def add_hotel(request):
 
                 # Prepare response data
                 response_data = {
-                    "id": hotel.id,
+                    "id": str(hotel.uuid),
                     "name": hotel.name,
                     "description": hotel.description,
                     "ratings": hotel.ratings,
@@ -134,7 +135,7 @@ def add_hotel(request):
                     "phoneno": hotel.phoneno,
                     "meal_type": hotel.meal_type,
                     "location": {
-                        "id": location.id,
+                        "id": str(location.uuid),
                         "name": location.name,
                         "address": location.address,
                         "city": location.city,
@@ -173,7 +174,7 @@ def add_shared_items(items_data, type_id, item_type, model, touroperator, user):
             created_by=user
         )
         added_items.append({
-            "id": shared_item.id,
+            "id": str(shared_item.uuid),
             "name": shared_item.name,
             "description": shared_item.description
         })
@@ -192,7 +193,7 @@ def update_hotel(request):
             with transaction.atomic():
                 # Fetch the hotel and related objects
                 hotel = Hotel.objects.select_related('location').filter(
-                    id=data['id'], tour_operator_id=data['tour_operator_id']
+                    uuid=data['id'], tour_operator__uuid=data['tour_operator_id']
                 ).first()
 
                 if hotel is None:
@@ -203,13 +204,13 @@ def update_hotel(request):
                     return JsonResponse({"error": "A hotel with this phone number already exists."}, status=409)
 
                 # Fetch tour_operator and user for shared items
-                touroperator = Touroperator.objects.get(id=data['tour_operator_id'])
-                user = User.objects.get(id=data['created_by'])
+                touroperator = Touroperator.objects.get(uuid=data['tour_operator_id'])
+                user = User.objects.get(uuid=data['created_by'])
 
                 # Update or reuse existing location
                 location_data = data['location']
                 location, created = Location.objects.get_or_create(
-                    tour_operator_id=data['tour_operator_id'],
+                    tour_operator__uuid=data['tour_operator_id'],
                     name=location_data['name'],
                     city=location_data['city'],
                     state=location_data['state'],
@@ -259,7 +260,7 @@ def update_hotel(request):
                     room_id = room_data.get("id")
                     if room_id:
                         # Update existing room if it exists
-                        room = Room.objects.filter(id=room_id, hotel=hotel).first()
+                        room = Room.objects.filter(uuid=room_id, hotel=hotel).first()
                         if room:
                             room.type = room_data['type']
                             room.capacity = room_data.get('capacity', room.capacity)
@@ -308,7 +309,7 @@ def update_hotel(request):
 
                     # Collect room details for response
                     updated_rooms.append({
-                        "id": room.id,
+                        "id": str(room.uuid),
                         "name": room.name,
                         "type": room.type,
                         "capacity": room.capacity,
@@ -323,18 +324,18 @@ def update_hotel(request):
                     })
 
                 # Remove rooms that are no longer in the request data
-                Room.objects.filter(hotel=hotel).exclude(id__in=existing_room_ids).delete()
+                Room.objects.filter(hotel=hotel).exclude(uuid__in=existing_room_ids).delete()
 
                 # Prepare response data
                 response_data = {
-                    "id": hotel.id,
+                    "id": str(hotel.uuid),
                     "name": hotel.name,
                     "description": hotel.description,
                     "ratings": hotel.ratings,
                     "website": hotel.website,
                     "phoneno": hotel.phoneno,
                     "location": {
-                        "id": location.id,
+                        "id": str(location.uuid),
                         "name": location.name,
                         "address": location.address,
                         "city": location.city,
@@ -367,14 +368,14 @@ def update_shared_items(items_data, type_id, item_type, model, tour_operator, cr
     for item in items_data:
         item_id = item.get("id")
         if item_id:
-            shared_item = model.objects.filter(id=item_id, type=item_type, type_id=type_id).first()
+            shared_item = model.objects.filter(uuid=item_id, type=item_type, type_id=type_id).first()
             if shared_item:
                 shared_item.name = item['name']
                 shared_item.description = item.get('description', shared_item.description)
                 shared_item.tour_operator = tour_operator
                 shared_item.created_by = created_by
                 shared_item.save()
-                existing_item_ids.add(shared_item.id)
+                existing_item_ids.add(shared_item.uuid)
             else:
                 shared_item = model.objects.create(
                     name=item['name'],
@@ -384,7 +385,7 @@ def update_shared_items(items_data, type_id, item_type, model, tour_operator, cr
                     tour_operator=tour_operator,
                     created_by=created_by
                 )
-                existing_item_ids.add(shared_item.id)
+                existing_item_ids.add(shared_item.uuid)
         else:
             shared_item = model.objects.create(
                 name=item['name'],
@@ -394,15 +395,15 @@ def update_shared_items(items_data, type_id, item_type, model, tour_operator, cr
                 tour_operator=tour_operator,
                 created_by=created_by
             )
-            existing_item_ids.add(shared_item.id)
+            existing_item_ids.add(shared_item.uuid)
 
         added_items.append({
-            "id": shared_item.id,
+            "id": str(shared_item.uuid),
             "name": shared_item.name,
             "description": shared_item.description})
 
     # Remove items no longer in request data
-    model.objects.filter(type=item_type, type_id=type_id).exclude(id__in=existing_item_ids).delete()
+    model.objects.filter(type=item_type, type_id=type_id).exclude(uuid__in=existing_item_ids).delete()
     return added_items
 
 
@@ -421,9 +422,9 @@ def add_rooms(request):
         return HttpResponse(json.dumps(rooms),content_type='application/json')
 
 def add_rooms_in_db(rooms,hotel_id,user_id,tour_operator_id):
-    touroperator = Touroperator.objects.filter(id = tour_operator_id)[0]
-    hotel = Hotel.objects.filter(id = hotel_id)[0]
-    user = User.objects.filter(id = user_id)[0]
+    touroperator = Touroperator.objects.filter(uuid = tour_operator_id)[0]
+    hotel = Hotel.objects.filter(uuid = hotel_id)[0]
+    user = User.objects.filter(uuid = user_id)[0]
     added_rooms = []
     for room in rooms:
         room = Room(name=room['name'],
@@ -436,7 +437,15 @@ def add_rooms_in_db(rooms,hotel_id,user_id,tour_operator_id):
                     tour_operator=touroperator
                     )
         room.save()
-        added_rooms.append( json.loads(serializers.serialize('json', [room],))[0])
+        # Custom serialization to return UUID
+        added_rooms.append({
+            "id": str(room.uuid),
+            "name": room.name,
+            "type": room.type,
+            "description": room.description,
+            "rating": room.rating,
+            "price_per_night": room.price_per_night
+        })
     return added_rooms
 
 def get_hotels_from_db(hotel_id, include_binary=False):
@@ -447,45 +456,45 @@ def get_hotels_from_db(hotel_id, include_binary=False):
 
     amenities_data = []
     for amenity in amenities:
-        amenities_data.append({"id":amenity.id,"name":amenity.name,"description":amenity.description})
+        amenities_data.append({"id":str(amenity.uuid),"name":amenity.name,"description":amenity.description})
 
     inclusions_data = []
     for inclusion in inclusions:
-        inclusions_data.append({"id":inclusion.id,"name":inclusion.name,"description":inclusion.description})
+        inclusions_data.append({"id":str(inclusion.uuid),"name":inclusion.name,"description":inclusion.description})
 
 
     exclusion_data = []
     for exclusion in exclusions:
-        exclusion_data.append({"id":exclusion.id,"name":exclusion.name,"description":exclusion.description})
+        exclusion_data.append({"id":str(exclusion.uuid),"name":exclusion.name,"description":exclusion.description})
 
 
     policy_data = []
     for policy in policies:
-        policy_data.append({"id":policy.id,"name":policy.name,"description":policy.description})
+        policy_data.append({"id":str(policy.uuid),"name":policy.name,"description":policy.description})
 
-    hotel = Hotel.objects.filter(id =hotel_id).first()
+    hotel = Hotel.objects.filter(uuid =hotel_id).first()
 
     # Fetch hotel images
-    hotel_images = get_images('hotel', hotel.id, include_binary)
+    hotel_images = get_images('hotel', hotel.uuid, include_binary)
 
     hotel_data = {
-        "id": hotel.id,
+        "id": str(hotel.uuid),
         "name": hotel.name,
         "description": hotel.description,
         "ratings": float(hotel.ratings),
         "meal_type": hotel.meal_type,
         "location": {
-                "id": hotel.location.id,
+                "id": str(hotel.location.uuid),
                 "name": hotel.location.name,
                 "address": hotel.location.address,
                 "city": hotel.location.city,
                 "state": hotel.location.state,
                 "country": hotel.location.country,
                 "pin_code": hotel.location.pin_code,
-                "created_by_id": hotel.location.created_by.id,
+                "created_by_id": str(hotel.location.created_by.uuid),
                 "lat": float(hotel.location.lat),
                 "lng": float(hotel.location.lng),
-                "tour_operator_id": hotel.location.tour_operator.id,
+                "tour_operator_id": str(hotel.location.tour_operator.uuid),
             },
         "amenities":amenities_data,
         "inclusions":inclusions_data,
@@ -493,7 +502,7 @@ def get_hotels_from_db(hotel_id, include_binary=False):
         "policies":policy_data,
         "images": hotel_images
     }
-    rooms = get_rooms_from_db(hotel.id)
+    rooms = get_rooms_from_db(hotel.uuid)
     hotel_data['rooms'] = rooms
     return hotel_data
 
@@ -520,11 +529,11 @@ def get_hotels(request):
                 return JsonResponse({"error": "tour_operator_id is required."}, status=400)
 
             # Fetch hotels based on tour_operator_id and optional filters
-            hotels_query = Hotel.objects.filter(tour_operator_id=tour_operator_id)
+            hotels_query = Hotel.objects.filter(tour_operator__uuid=tour_operator_id)
 
             # Filter by specific hotel ID if provided
             if hotel_id:
-                hotels_query = hotels_query.filter(id=hotel_id)
+                hotels_query = hotels_query.filter(uuid=hotel_id)
 
             if not include_inactive:
                 hotels_query = hotels_query.filter(is_active =True)
@@ -544,7 +553,7 @@ def get_hotels(request):
                 hotel_policies = get_shared_items(hotel.id, 'hotel', Policy)
 
                 # Fetch hotel images
-                hotel_images = get_images('hotel', hotel.id, include_binary)
+                hotel_images = get_images('hotel', hotel.uuid, include_binary)
 
                 # Fetch rooms and their shared items
                 rooms_data = []
@@ -556,11 +565,11 @@ def get_hotels(request):
                     room_policies = get_shared_items(room.id, 'room', Policy)
 
                     # Fetch room images
-                    room_images = get_images('room', room.id, include_binary)
+                    room_images = get_images('room', room.uuid, include_binary)
 
                     # Prepare room data
                     room_data = {
-                        "id": room.id,
+                        "id": str(room.uuid),
                         "name": room.name,
                         "type": room.type,
                         "capacity": int(room.capacity) if room.capacity is not None else None,
@@ -578,7 +587,7 @@ def get_hotels(request):
 
                 # Prepare hotel data
                 hotel_data = {
-                    "id": hotel.id,
+                    "id": str(hotel.uuid),
                     "name": hotel.name,
                     "description": hotel.description,
                     "ratings": int(hotel.ratings) if hotel.ratings is not None else None,
@@ -586,7 +595,7 @@ def get_hotels(request):
                     "phoneno": hotel.phoneno,
                     "meal_type": hotel.meal_type,
                     "location": {
-                        "id": location.id,
+                        "id": str(location.uuid),
                         "name": location.name,
                         "address": location.address,
                         "city": location.city,
@@ -617,7 +626,7 @@ def get_hotel_by_id(hotel_id, include_binary=False):
     try:
 
         # Fetch hotels based on tour_operator_id and optional city filter
-        hotel = Hotel.objects.filter(id=hotel_id).first()
+        hotel = Hotel.objects.filter(uuid=hotel_id).first()
 
         # Fetch location
         location = hotel.location
@@ -629,7 +638,7 @@ def get_hotel_by_id(hotel_id, include_binary=False):
         hotel_policies = get_shared_items(hotel.id, 'hotel', Policy)
 
         # Fetch hotel images
-        hotel_images = get_images('hotel', hotel.id, include_binary)
+        hotel_images = get_images('hotel', hotel.uuid, include_binary)
 
         # Fetch rooms and their shared items
         rooms_data = []
@@ -641,11 +650,11 @@ def get_hotel_by_id(hotel_id, include_binary=False):
             room_policies = get_shared_items(room.id, 'room', Policy)
 
             # Fetch room images
-            room_images = get_images('room', room.id, include_binary)
+            room_images = get_images('room', room.uuid, include_binary)
 
             # Prepare room data
             room_data = {
-                "id": room.id,
+                "id": str(room.uuid),
                 "name": room.name,
                 "type": room.type,
                 "capacity": room.capacity,
@@ -663,7 +672,7 @@ def get_hotel_by_id(hotel_id, include_binary=False):
 
         # Prepare hotel data
         hotel_data = {
-            "id": hotel.id,
+            "id": str(hotel.uuid),
             "name": hotel.name,
             "description": hotel.description,
             "ratings": hotel.ratings,
@@ -671,7 +680,7 @@ def get_hotel_by_id(hotel_id, include_binary=False):
             "phoneno": hotel.phoneno,
             "meal_type": hotel.meal_type,
             "location": {
-                "id": location.id,
+                "id": str(location.uuid),
                 "name": location.name,
                 "address": location.address,
                 "city": location.city,
@@ -696,38 +705,41 @@ def get_hotel_by_id(hotel_id, include_binary=False):
 
 def get_shared_items(type_id, item_type, model):
     """Helper function to fetch shared items (amenities, inclusions, exclusions, policies) and return them."""
-    items = model.objects.filter(type=item_type, type_id=type_id).values('id', 'name', 'description')
-    return list(items)
+    items = model.objects.filter(type=item_type, type_id=type_id).values('uuid', 'name', 'description')
+    return [{"id": str(item['uuid']), "name": item['name'], "description": item['description']} for item in items]
 
 
 def get_images(module, record_id, include_binary=False):
-    """Helper function to fetch images for a given module and record ID."""
-    # Get the entity based on the module and record_id
+    """Helper function to fetch images for a given module and record ID (UUID)."""
+    # Get the entity based on the module and record_id (which is UUID)
     entity = None
     if module == 'hotel':
-        entity = Hotel.objects.filter(id=record_id).first()
+        entity = Hotel.objects.filter(uuid=record_id).first()
     elif module == 'room':
-        entity = Room.objects.filter(id=record_id).first()
+        entity = Room.objects.filter(uuid=record_id).first()
     elif module == 'package':
-        entity = Package.objects.filter(id=record_id).first()
+        entity = Package.objects.filter(uuid=record_id).first()
     elif module == 'destination':
-        entity = Destination.objects.filter(id=record_id).first()
+        entity = Destination.objects.filter(uuid=record_id).first()
     elif module == 'car_dealer':
-        entity = Cardealer.objects.filter(id=record_id).first()
+        entity = Cardealer.objects.filter(uuid=record_id).first()
     elif module == 'event':
-        entity = Event.objects.filter(id=record_id).first()
+        entity = Event.objects.filter(uuid=record_id).first()
     elif module == 'sightseeing':
-        entity = SightSeeing.objects.filter(id=record_id).first()
+        entity = SightSeeing.objects.filter(uuid=record_id).first()
     elif module == 'itinerary_item':
         from ..models import Itineraryitem
-        entity = Itineraryitem.objects.filter(id=record_id).first()
+        entity = Itineraryitem.objects.filter(uuid=record_id).first()
+
+    if not entity:
+        return []
 
     # If entity is found and has image_ids, use them to fetch images
-    if entity and entity.image_ids:
+    if entity.image_ids:
         images = ImageMetadata.objects.filter(id__in=entity.image_ids).order_by('order')
     else:
-        # Fallback to the old method
-        images = ImageMetadata.objects.filter(module=module, record_id=record_id).order_by('order')
+        # Fallback to the old method using integer ID from entity
+        images = ImageMetadata.objects.filter(module=module, record_id=entity.id).order_by('order')
 
     images_data = []
     for image in images:
@@ -766,7 +778,7 @@ def get_rooms(request):
 
 def get_rooms_from_db(hotel_id, include_binary=False):
     rooms = []
-    rooms_from_db= Room.objects.filter(hotel_id =hotel_id).all()
+    rooms_from_db= Room.objects.filter(hotel__uuid=hotel_id).all()
     for room_from_db in rooms_from_db:
         amenities = Amenity.objects.filter(type="room",type_id=room_from_db.id).all()
         inclusions = Inclusion.objects.filter(type="room",type_id=room_from_db.id).all()
@@ -775,27 +787,27 @@ def get_rooms_from_db(hotel_id, include_binary=False):
 
         amenities_data = []
         for amenity in amenities:
-            amenities_data.append({"id":amenity.id,"name":amenity.name,"description":amenity.description})
+            amenities_data.append({"id":str(amenity.uuid),"name":amenity.name,"description":amenity.description})
 
         inclusions_data = []
         for inclusion in inclusions:
-            inclusions_data.append({"id":inclusion.id,"name":inclusion.name,"description":inclusion.description})
+            inclusions_data.append({"id":str(inclusion.uuid),"name":inclusion.name,"description":inclusion.description})
 
 
         exclusion_data = []
         for exclusion in exclusions:
-            exclusion_data.append({"id":exclusion.id,"name":exclusion.name,"description":exclusion.description})
+            exclusion_data.append({"id":str(exclusion.uuid),"name":exclusion.name,"description":exclusion.description})
 
 
         policy_data = []
         for policy in policies:
-            policy_data.append({"id":policy.id,"name":policy.name,"description":policy.description})
+            policy_data.append({"id":str(policy.uuid),"name":policy.name,"description":policy.description})
 
         # Fetch room images
-        room_images = get_images('room', room_from_db.id, include_binary)
+        room_images = get_images('room', room_from_db.uuid, include_binary)
 
         room_data = {
-            "id":room_from_db.id,
+            "id":str(room_from_db.uuid),
             "type":room_from_db.type,
             "description":room_from_db.description,
             "price_per_night":float(room_from_db.price_per_night),

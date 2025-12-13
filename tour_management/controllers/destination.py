@@ -27,8 +27,8 @@ def add_destination(request):
 
         try:
             with transaction.atomic():
-                touroperator = Touroperator.objects.get(id=data['tour_operator_id'])
-                user = User.objects.get(id=data['user_id'])
+                touroperator = Touroperator.objects.get(uuid=data['tour_operator_id'])
+                user = User.objects.get(uuid=data['user_id'])
 
                 if Destination.objects.filter(tour_operator_id=touroperator, name=data['name']).exists():
                     return JsonResponse({"error": "The destination already exists."}, status=409)
@@ -45,7 +45,7 @@ def add_destination(request):
                 # Process location_ids if provided (map existing locations)
                 if data.get('location_ids'):
                     for location_id in data['location_ids']:
-                        location = Location.objects.get(id=location_id, tour_operator=touroperator)
+                        location = Location.objects.get(uuid=location_id, tour_operator=touroperator)
 
                         # Get or create StateCity for this location
                         statecity, _ = StateCity.objects.get_or_create(
@@ -65,7 +65,7 @@ def add_destination(request):
                         )
 
                         locations_data.append({
-                            "id": location.id,
+                            "id": str(location.uuid),
                             "name": location.name,
                             "city": location.city,
                             "state": location.state,
@@ -91,7 +91,7 @@ def add_destination(request):
 
                         # If location_id is provided, use existing location
                         if 'location_id' in location_data and location_data['location_id']:
-                            location = Location.objects.get(id=location_data['location_id'])
+                            location = Location.objects.get(uuid=location_data['location_id'])
                         else:
                             # Create or get Location object with full details
                             location, created = Location.objects.get_or_create(
@@ -117,7 +117,7 @@ def add_destination(request):
                         )
 
                         locations_data.append({
-                            "id": location.id,
+                            "id": str(location.uuid),
                             "name": location.name,
                             "city": location.city,
                             "state": location.state,
@@ -129,11 +129,11 @@ def add_destination(request):
                         })
 
                 result = {
-                    "id": destination.id,
+                    "id": str(destination.uuid),
                     "name": destination.name,
                     "description": destination.description,
-                    "created_by_id": destination.created_by.id,
-                    "tour_operator_id": destination.tour_operator_id.id,
+                    "created_by_id": str(destination.created_by.uuid),
+                    "tour_operator_id": str(destination.tour_operator_id.uuid),
                     "locations": locations_data,
                     "location_ids": [loc["id"] for loc in locations_data],
                     "image_ids": destination.image_ids if destination.image_ids else []
@@ -217,17 +217,17 @@ def update_destination(request):
         try:
             with transaction.atomic():
                 # Get the destination to update
-                destination = Destination.objects.get(id=data['id'])
-                touroperator = Touroperator.objects.get(id=data['tour_operator_id'])
-                user = User.objects.get(id=data['user_id'])
+                destination = Destination.objects.get(uuid=data['id'])
+                touroperator = Touroperator.objects.get(uuid=data['tour_operator_id'])
+                user = User.objects.get(uuid=data['user_id'])
 
                 # Verify the destination belongs to the tour operator
-                if destination.tour_operator_id.id != touroperator.id:
-                    return JsonResponse({"error": "Destination does not belong to this tour operator"}, status=403)
+                if destination.tour_operator_id.uuid != touroperator.uuid:
+                    return JsonResponse({"error": "Destination does not belong to the specified tour operator."}, status=403)
 
-                # Check if name is being changed and if new name already exists
-                if destination.name != data['name']:
-                    if Destination.objects.filter(tour_operator_id=touroperator, name=data['name']).exclude(id=destination.id).exists():
+                # Check for duplicate destination name within the same tour operator
+                # Exclude the current destination from the check
+                if Destination.objects.filter(tour_operator_id__uuid=touroperator.uuid, name=data['name']).exclude(uuid=destination.uuid).exists():
                         return JsonResponse({"error": "A destination with this name already exists."}, status=409)
 
                 # Update destination fields
@@ -244,7 +244,7 @@ def update_destination(request):
                 # Process location_ids if provided (map existing locations)
                 if data.get('location_ids'):
                     for location_id in data['location_ids']:
-                        location = Location.objects.get(id=location_id, tour_operator=touroperator)
+                        location = Location.objects.get(uuid=location_id, tour_operator=touroperator)
 
                         # Get or create StateCity for this location
                         statecity, _ = StateCity.objects.get_or_create(
@@ -264,7 +264,7 @@ def update_destination(request):
                         )
 
                         locations_data.append({
-                            "id": location.id,
+                            "id": str(location.uuid),
                             "name": location.name,
                             "city": location.city,
                             "state": location.state,
@@ -290,7 +290,7 @@ def update_destination(request):
 
                         # If location_id is provided, use existing location
                         if 'location_id' in location_data and location_data['location_id']:
-                            location = Location.objects.get(id=location_data['location_id'])
+                            location = Location.objects.get(uuid=location_data['location_id'])
                         else:
                             # Create or get Location object with full details
                             location, created = Location.objects.get_or_create(
@@ -316,7 +316,7 @@ def update_destination(request):
                         )
 
                         locations_data.append({
-                            "id": location.id,
+                            "id": str(location.uuid),
                             "name": location.name,
                             "city": location.city,
                             "state": location.state,
@@ -328,11 +328,11 @@ def update_destination(request):
                         })
 
                 result = {
-                    "id": destination.id,
+                    "id": str(destination.uuid),
                     "name": destination.name,
                     "description": destination.description,
-                    "created_by_id": destination.created_by.id,
-                    "tour_operator_id": destination.tour_operator_id.id,
+                    "created_by_id": str(destination.created_by.uuid),
+                    "tour_operator_id": str(destination.tour_operator_id.uuid),
                     "locations": locations_data,
                     "location_ids": [loc["id"] for loc in locations_data],
                     "image_ids": destination.image_ids if destination.image_ids else []
@@ -361,7 +361,7 @@ def get_destinations(request):
     # If destination ID is provided, fetch that specific destination
     if destination_id is not None:
         try:
-            destination = Destination.objects.get(id=destination_id)
+            destination = Destination.objects.get(uuid=destination_id)
 
             # Get locations for this destination
             mappings = StateCityToDestinationMapping.objects.filter(destination=destination)
@@ -370,7 +370,7 @@ def get_destinations(request):
             for mapping in mappings:
                 if mapping.location:
                     locations_data.append({
-                        "id": mapping.location.id,
+                        "id": str(mapping.location.uuid),
                         "name": mapping.location.name,
                         "city": mapping.location.city,
                         "state": mapping.location.state,
@@ -382,11 +382,11 @@ def get_destinations(request):
                     })
 
             result = {
-                "id": destination.id,
+                "id": str(destination.uuid),
                 "name": destination.name,
                 "description": destination.description,
-                "created_by_id": destination.created_by.id,
-                "tour_operator_id": destination.tour_operator_id.id,
+                "created_by_id": str(destination.created_by.uuid),
+                "tour_operator_id": str(destination.tour_operator_id.uuid),
                 "locations": locations_data,
                 "location_ids": [loc["id"] for loc in locations_data if "id" in loc],
                 "image_ids": destination.image_ids if destination.image_ids else []
@@ -406,9 +406,9 @@ def get_destinations(request):
 
     # Filter destinations based on the provided IDs
     if user_id is not None:
-        destination_queryset = Destination.objects.filter(id=user_id)
+        destination_queryset = Destination.objects.filter(created_by__uuid=user_id)
     elif tour_operator_id is not None:
-        destination_queryset = Destination.objects.filter(tour_operator_id=tour_operator_id)
+        destination_queryset = Destination.objects.filter(tour_operator_id__uuid=tour_operator_id)
     else:
         destination_queryset = Destination.objects.all()
 
@@ -433,7 +433,7 @@ def get_destinations(request):
             # Include full location details if available
             if mapping.location:
                 location_info.update({
-                    "id": mapping.location.id,
+                    "id": str(mapping.location.uuid),
                     "name": mapping.location.name,
                     "address": mapping.location.address,
                     "pin_code": mapping.location.pin_code,
@@ -445,11 +445,11 @@ def get_destinations(request):
             locations_data.append(location_info)
 
         result.append({
-            "id": dest.id,
+            "id": str(dest.uuid),
             "name": dest.name,
             "description": dest.description,
-            "created_by_id": dest.created_by.id,
-            "tour_operator_id": dest.tour_operator_id.id,
+            "created_by_id": str(dest.created_by.uuid),
+            "tour_operator_id": str(dest.tour_operator_id.uuid),
             "locations": locations_data,
             "location_ids": [loc["id"] for loc in locations_data if "id" in loc],
             "image_ids": dest.image_ids if dest.image_ids else []
@@ -496,9 +496,9 @@ def delete_destination(request):
 
     try:
         # Get the destination and verify it belongs to the tour operator
-        destination = Destination.objects.get(id=destination_id)
+        destination = Destination.objects.get(uuid=destination_id)
 
-        if destination.tour_operator_id.id != tour_operator_id:
+        if destination.tour_operator_id.uuid != tour_operator_id:
             return JsonResponse(
                 {"error": "Destination does not belong to the specified tour operator."},
                 status=403

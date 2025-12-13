@@ -71,7 +71,7 @@ def add_company_profile(request):
 
             # Validate tour operator exists
             try:
-                tour_operator = Touroperator.objects.get(id=data['tour_operator_id'])
+                tour_operator = Touroperator.objects.get(uuid=data['tour_operator_id'])
             except Touroperator.DoesNotExist:
                 return JsonResponse({
                     "code": 404,
@@ -80,7 +80,7 @@ def add_company_profile(request):
 
             # Validate user exists
             try:
-                user = User.objects.get(id=data['created_by'])
+                user = User.objects.get(uuid=data['created_by'])
             except User.DoesNotExist:
                 return JsonResponse({
                     "code": 404,
@@ -126,7 +126,7 @@ def add_company_profile(request):
             return JsonResponse({
                 "code": 200,
                 "message": "Company profile created successfully",
-                "profile_id": profile.id
+                "profile_id": str(profile.uuid)
             }, status=201)
 
         except Exception as e:
@@ -160,7 +160,7 @@ def get_company_profile(request):
 
             # Get company profile
             try:
-                profile = CompanyProfile.objects.get(tour_operator_id=data['tour_operator_id'])
+                profile = CompanyProfile.objects.get(tour_operator__uuid=data['tour_operator_id'])
             except CompanyProfile.DoesNotExist:
                 return JsonResponse({
                     "code": 404,
@@ -173,8 +173,8 @@ def get_company_profile(request):
 
             # Build response
             response_data = {
-                "id": profile.id,
-                "tour_operator_id": profile.tour_operator.id,
+                "id": str(profile.uuid),
+                "tour_operator_id": str(profile.tour_operator.uuid),
                 "company_name": profile.company_name,
                 "tagline": profile.tagline,
                 "description": profile.description,
@@ -208,8 +208,8 @@ def get_company_profile(request):
                 },
                 "created_at": str(profile.created_at),
                 "updated_at": str(profile.updated_at),
-                "created_by": profile.created_by.id if profile.created_by else None,
-                "updated_by": profile.updated_by.id if profile.updated_by else None
+                "created_by": str(profile.created_by.uuid) if profile.created_by else None,
+                "updated_by": str(profile.updated_by.uuid) if profile.updated_by else None
             }
 
             return JsonResponse({
@@ -247,7 +247,7 @@ def update_company_profile(request):
 
             # Validate user exists and is a manager
             try:
-                user = User.objects.get(id=data['updated_by'])
+                user = User.objects.get(uuid=data['updated_by'])
                 if user.role != 'manager':
                     return JsonResponse({
                         "code": 403,
@@ -261,7 +261,7 @@ def update_company_profile(request):
 
             # Get company profile
             try:
-                profile = CompanyProfile.objects.get(tour_operator_id=data['tour_operator_id'])
+                profile = CompanyProfile.objects.get(tour_operator__uuid=data['tour_operator_id'])
             except CompanyProfile.DoesNotExist:
                 return JsonResponse({
                     "code": 404,
@@ -322,7 +322,7 @@ def update_company_profile(request):
             return JsonResponse({
                 "code": 200,
                 "message": "Company profile updated successfully",
-                "profile_id": profile.id
+                "profile_id": str(profile.uuid)
             }, status=200)
 
         except Exception as e:

@@ -30,7 +30,7 @@ def add_customer(request):
 
             # Validate tour operator exists
             try:
-                touroperator = Touroperator.objects.get(id=data['tour_operator_id'])
+                touroperator = Touroperator.objects.get(uuid=data['tour_operator_id'])
             except Touroperator.DoesNotExist:
                 return JsonResponse({
                     "code": 404,
@@ -61,10 +61,10 @@ def add_customer(request):
             return JsonResponse({
                 "code": 200,
                 "message": "Customer added successfully",
-                "customer_id": customer.id,
+                "customer_id": str(customer.uuid),
                 "data": {
-                    "id": customer.id,
-                    "tour_operator_id": customer.tour_operator.id,
+                    "id": str(customer.uuid),
+                    "tour_operator_id": str(customer.tour_operator.uuid),
                     "name": customer.name,
                     "phone": customer.phone,
                     "email": customer.email,
@@ -105,7 +105,7 @@ def get_customers(request):
 
             # Validate tour operator exists
             try:
-                touroperator = Touroperator.objects.get(id=data['tour_operator_id'])
+                touroperator = Touroperator.objects.get(uuid=data['tour_operator_id'])
             except Touroperator.DoesNotExist:
                 return JsonResponse({
                     "code": 404,
@@ -113,11 +113,11 @@ def get_customers(request):
                 }, status=404)
 
             # Start with customers filtered by tour operator (data isolation)
-            customers = Customer.objects.filter(tour_operator_id=data['tour_operator_id'])
+            customers = Customer.objects.filter(tour_operator__uuid=data['tour_operator_id'])
 
             # Apply additional filters if provided
             if 'customer_id' in data and data['customer_id']:
-                customers = customers.filter(id=data['customer_id'])
+                customers = customers.filter(uuid=data['customer_id'])
 
             if 'phone' in data and data['phone']:
                 customers = customers.filter(phone__icontains=data['phone'])
@@ -143,8 +143,8 @@ def get_customers(request):
             result = []
             for customer in paginated_customers:
                 result.append({
-                    "id": customer.id,
-                    "tour_operator_id": customer.tour_operator.id if customer.tour_operator else None,
+                    "id": str(customer.uuid),
+                    "tour_operator_id": str(customer.tour_operator.uuid) if customer.tour_operator else None,
                     "tour_operator_name": customer.tour_operator.name if customer.tour_operator else None,
                     "name": customer.name,
                     "phone": customer.phone,
@@ -191,7 +191,7 @@ def update_customer(request):
             
             # Get customer
             try:
-                customer = Customer.objects.get(id=data['customer_id'])
+                customer = Customer.objects.get(uuid=data['customer_id'])
             except Customer.DoesNotExist:
                 return JsonResponse({
                     "code": 404,
@@ -203,7 +203,7 @@ def update_customer(request):
                 if Customer.objects.filter(
                     tour_operator=customer.tour_operator,
                     phone=data['phone']
-                ).exclude(id=customer.id).exists():
+                ).exclude(uuid=customer.uuid).exists():
                     return JsonResponse({
                         "code": 409,
                         "message": "A customer with this phone number already exists for this tour operator"
@@ -225,8 +225,8 @@ def update_customer(request):
                 "code": 200,
                 "message": "Customer updated successfully",
                 "data": {
-                    "id": customer.id,
-                    "tour_operator_id": customer.tour_operator.id if customer.tour_operator else None,
+                    "id": str(customer.uuid),
+                    "tour_operator_id": str(customer.tour_operator.uuid) if customer.tour_operator else None,
                     "name": customer.name,
                     "phone": customer.phone,
                     "email": customer.email,
@@ -265,7 +265,7 @@ def delete_customer(request):
             
             # Get customer
             try:
-                customer = Customer.objects.get(id=data['customer_id'])
+                customer = Customer.objects.get(uuid=data['customer_id'])
             except Customer.DoesNotExist:
                 return JsonResponse({
                     "code": 404,

@@ -84,7 +84,7 @@ def generate_lead_pdf_api(request):
             lead_data['customer']['last_name'] = name_parts[1] if len(name_parts) > 1 else ''
 
         # Get lead object for additional details
-        lead_obj = Lead.objects.select_related('created_by', 'tour_operator').get(id=lead_id)
+        lead_obj = Lead.objects.select_related('created_by', 'tour_operator').get(uuid=lead_id)
 
         # Add created_by user information to lead_data
         created_by_data = None
@@ -107,7 +107,7 @@ def generate_lead_pdf_api(request):
         # Get company profile data for branding
         company_profile_data = None
         try:
-            tour_operator_id = lead_obj.tour_operator.id
+            tour_operator_id = str(lead_obj.tour_operator.uuid)
 
             # Fetch company profile
             mock_profile_request = HttpRequest()

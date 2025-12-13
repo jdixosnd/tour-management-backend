@@ -36,7 +36,7 @@ def upload_images(request):
 
         try:
             # Get tour operator and check quota
-            tour_operator = Touroperator.objects.get(id=tour_operator_id)
+            tour_operator = Touroperator.objects.get(uuid=tour_operator_id)
             quota_field = f"max_images_{module}"
             max_images = getattr(TourOperatorQuota.objects.get(tour_operator=tour_operator), quota_field, 5)
 
@@ -92,7 +92,7 @@ def upload_images(request):
                 # Update the image_ids field of the corresponding entity
                 if module == 'hotel':
                     try:
-                        hotel = Hotel.objects.get(id=record_id)
+                        hotel = Hotel.objects.get(uuid=record_id)
                         if hotel.image_ids is None:
                             hotel.image_ids = []
                         hotel.image_ids.append(image_metadata.id)
@@ -101,7 +101,7 @@ def upload_images(request):
                         pass
                 elif module == 'room':
                     try:
-                        room = Room.objects.get(id=record_id)
+                        room = Room.objects.get(uuid=record_id)
                         if room.image_ids is None:
                             room.image_ids = []
                         room.image_ids.append(image_metadata.id)
@@ -110,7 +110,7 @@ def upload_images(request):
                         pass
                 elif module == 'package':
                     try:
-                        package = Package.objects.get(id=record_id)
+                        package = Package.objects.get(uuid=record_id)
                         if package.image_ids is None:
                             package.image_ids = []
                         package.image_ids.append(image_metadata.id)
@@ -119,7 +119,7 @@ def upload_images(request):
                         pass
                 elif module == 'destination':
                     try:
-                        destination = Destination.objects.get(id=record_id)
+                        destination = Destination.objects.get(uuid=record_id)
                         if destination.image_ids is None:
                             destination.image_ids = []
                         destination.image_ids.append(image_metadata.id)
@@ -128,7 +128,7 @@ def upload_images(request):
                         pass
                 elif module == 'car_dealer':
                     try:
-                        cardealer = Cardealer.objects.get(id=record_id)
+                        cardealer = Cardealer.objects.get(uuid=record_id)
                         if cardealer.image_ids is None:
                             cardealer.image_ids = []
                         cardealer.image_ids.append(image_metadata.id)
@@ -137,7 +137,7 @@ def upload_images(request):
                         pass
                 elif module == 'event':
                     try:
-                        event = Event.objects.get(id=record_id)
+                        event = Event.objects.get(uuid=record_id)
                         if event.image_ids is None:
                             event.image_ids = []
                         event.image_ids.append(image_metadata.id)
@@ -146,7 +146,7 @@ def upload_images(request):
                         pass
                 elif module == 'sightseeing':
                     try:
-                        sightseeing = SightSeeing.objects.get(id=record_id)
+                        sightseeing = SightSeeing.objects.get(uuid=record_id)
                         if sightseeing.image_ids is None:
                             sightseeing.image_ids = []
                         sightseeing.image_ids.append(image_metadata.id)
@@ -155,7 +155,7 @@ def upload_images(request):
                         pass
                 elif module == 'itinerary_item':
                     try:
-                        itinerary_item = Itineraryitem.objects.get(id=record_id)
+                        itinerary_item = Itineraryitem.objects.get(uuid=record_id)
                         if itinerary_item.image_ids is None:
                             itinerary_item.image_ids = []
                         itinerary_item.image_ids.append(image_metadata.id)
@@ -196,25 +196,25 @@ def get_images(request):
 
         try:
             # Retrieve tour operator
-            tour_operator = Touroperator.objects.get(id=tour_operator_id)
+            tour_operator = Touroperator.objects.get(uuid=tour_operator_id)
 
             # Get the entity based on the module and record_id
             entity = None
             if record_id:
                 if module == 'hotel':
-                    entity = Hotel.objects.filter(id=record_id).first()
+                    entity = Hotel.objects.filter(uuid=record_id).first()
                 elif module == 'room':
-                    entity = Room.objects.filter(id=record_id).first()
+                    entity = Room.objects.filter(uuid=record_id).first()
                 elif module == 'package':
-                    entity = Package.objects.filter(id=record_id).first()
+                    entity = Package.objects.filter(uuid=record_id).first()
                 elif module == 'destination':
-                    entity = Destination.objects.filter(id=record_id).first()
+                    entity = Destination.objects.filter(uuid=record_id).first()
                 elif module == 'car_dealer':
-                    entity = Cardealer.objects.filter(id=record_id).first()
+                    entity = Cardealer.objects.filter(uuid=record_id).first()
                 elif module == 'event':
-                    entity = Event.objects.filter(id=record_id).first()
+                    entity = Event.objects.filter(uuid=record_id).first()
                 elif module == 'sightseeing':
-                    entity = SightSeeing.objects.filter(id=record_id).first()
+                    entity = SightSeeing.objects.filter(uuid=record_id).first()
 
             # If entity is found and has image_ids, use them to fetch images
             if entity and entity.image_ids:
@@ -277,7 +277,7 @@ def delete_image(request):
 
         try:
             # Retrieve the image entry from the database
-            image = ImageMetadata.objects.get(id=image_id)
+            image = ImageMetadata.objects.get(uuid=image_id)
 
             # Remove the image ID from the image_ids field of the corresponding entity
             module = image.module
@@ -285,7 +285,7 @@ def delete_image(request):
 
             if module == 'hotel':
                 try:
-                    hotel = Hotel.objects.get(id=record_id)
+                    hotel = Hotel.objects.get(uuid=record_id)
                     if hotel.image_ids and image_id in hotel.image_ids:
                         hotel.image_ids.remove(image_id)
                         hotel.save(update_fields=['image_ids'])
@@ -293,7 +293,7 @@ def delete_image(request):
                     pass
             elif module == 'room':
                 try:
-                    room = Room.objects.get(id=record_id)
+                    room = Room.objects.get(uuid=record_id)
                     if room.image_ids and image_id in room.image_ids:
                         room.image_ids.remove(image_id)
                         room.save(update_fields=['image_ids'])
@@ -301,7 +301,7 @@ def delete_image(request):
                     pass
             elif module == 'package':
                 try:
-                    package = Package.objects.get(id=record_id)
+                    package = Package.objects.get(uuid=record_id)
                     if package.image_ids and image_id in package.image_ids:
                         package.image_ids.remove(image_id)
                         package.save(update_fields=['image_ids'])
@@ -309,7 +309,7 @@ def delete_image(request):
                     pass
             elif module == 'destination':
                 try:
-                    destination = Destination.objects.get(id=record_id)
+                    destination = Destination.objects.get(uuid=record_id)
                     if destination.image_ids and image_id in destination.image_ids:
                         destination.image_ids.remove(image_id)
                         destination.save(update_fields=['image_ids'])
@@ -317,7 +317,7 @@ def delete_image(request):
                     pass
             elif module == 'car_dealer':
                 try:
-                    cardealer = Cardealer.objects.get(id=record_id)
+                    cardealer = Cardealer.objects.get(uuid=record_id)
                     if cardealer.image_ids and image_id in cardealer.image_ids:
                         cardealer.image_ids.remove(image_id)
                         cardealer.save(update_fields=['image_ids'])
@@ -325,7 +325,7 @@ def delete_image(request):
                     pass
             elif module == 'event':
                 try:
-                    event = Event.objects.get(id=record_id)
+                    event = Event.objects.get(uuid=record_id)
                     if event.image_ids and image_id in event.image_ids:
                         event.image_ids.remove(image_id)
                         event.save(update_fields=['image_ids'])
@@ -333,7 +333,7 @@ def delete_image(request):
                     pass
             elif module == 'sightseeing':
                 try:
-                    sightseeing = SightSeeing.objects.get(id=record_id)
+                    sightseeing = SightSeeing.objects.get(uuid=record_id)
                     if sightseeing.image_ids and image_id in sightseeing.image_ids:
                         sightseeing.image_ids.remove(image_id)
                         sightseeing.save(update_fields=['image_ids'])
@@ -341,7 +341,7 @@ def delete_image(request):
                     pass
             elif module == 'itinerary_item':
                 try:
-                    itinerary_item = Itineraryitem.objects.get(id=record_id)
+                    itinerary_item = Itineraryitem.objects.get(uuid=record_id)
                     if itinerary_item.image_ids and image_id in itinerary_item.image_ids:
                         itinerary_item.image_ids.remove(image_id)
                         itinerary_item.save(update_fields=['image_ids'])

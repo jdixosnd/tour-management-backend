@@ -18,25 +18,25 @@ def add_amenity(request):
                 ",".join(missing_keys)+" are required fields.")
 
 
-        touroperator = Touroperator.objects.filter(id = data['tour_operator_id'])[0]
-        user = User.objects.filter(id = data['created_by'])[0]
+        touroperator = Touroperator.objects.filter(uuid = data['tour_operator_id'])[0]
+        user = User.objects.filter(uuid = data['created_by'])[0]
         if data['type'].lower() == "hotel":
-            type = Hotel.objects.filter(id = data['type_id'])
+            type = Hotel.objects.filter(uuid = data['type_id'])
             if len(type) == 0:
                 ##RAISE ERROR
                 ...
         elif data['type'].lower() == "room":
-            type = Room.objects.filter(id = data['type_id'])
+            type = Room.objects.filter(uuid = data['type_id'])
             if len(type) == 0:
                 ##RAISE ERROR
                 ...
         elif data['type'].lower() == "event":
-            type = Event.objects.filter(id = data['type_id'])
+            type = Event.objects.filter(uuid = data['type_id'])
             if len(type) == 0:
                 ##RAISE ERROR
                 ...
         elif data['type'].lower() == "cardealer":
-            type = Cardealer.objects.filter(id = data['type_id'])
+            type = Cardealer.objects.filter(uuid = data['type_id'])
             if len(type) == 0:
                 ##RAISE ERROR
                 ...
@@ -57,8 +57,15 @@ def add_amenity(request):
             
                
         amenity.save()
-        data = serializers.serialize('json', [amenity,])
-        return HttpResponse(data,content_type='application/json')
+        amenity.save()
+        data = {
+            "id": str(amenity.uuid),
+            "name": amenity.name,
+            "description": amenity.description,
+            "type": amenity.type,
+            "type_id": amenity.type_id
+        }
+        return HttpResponse(json.dumps([data]),content_type='application/json')
 
 def get_amenities(request):
     result = []
@@ -85,11 +92,16 @@ def get_amenities(request):
             type="event"
 
         if tour_operator_id is not None and type_id is not None and type is not None:
-            amenities = Amenity.objects.filter(tour_operator =tour_operator_id).filter(type = type).filter(type_id=type_id).all()
+            amenities = Amenity.objects.filter(tour_operator__uuid =tour_operator_id).filter(type = type).filter(type_id=type_id).all()
         
         for amenity in amenities:
-            user_data = serializers.serialize('json', [amenity,])
-            result.append(json.loads(user_data)[0])
+            result.append({
+                "id": str(amenity.uuid),
+                "name": amenity.name,
+                "description": amenity.description,
+                "type": amenity.type,
+                "type_id": amenity.type_id
+            })
         
 
         return HttpResponse(json.dumps(result),content_type='application/json')

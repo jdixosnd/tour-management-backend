@@ -20,10 +20,10 @@ def add_location_to_db(data):
         }
 
     touroperator = Touroperator.objects.filter(
-        id=data['tour_operator_id'])[0]
+        uuid=data['tour_operator_id'])[0]
 
     user = User.objects.filter(
-        id=data['user_id'])[0]
+        uuid=data['user_id'])[0]
 
     if Location.objects.filter(tour_operator=touroperator).filter(city=data['city']).filter(state=data['state']).filter(country=data['country']).filter(name=data['name']).exists():
         return {
@@ -43,8 +43,8 @@ def add_location_to_db(data):
                         lng=data['lng'] if 'lng' in data else None)
 
     location.save()
-    data = {"tour_operator": location.tour_operator.id,
-            "created_by": location.created_by.id,
+    data = {"tour_operator": str(location.tour_operator.uuid),
+            "created_by": str(location.created_by.uuid),
             "city": location.city,
             "state": location.state,
             "country": location.country,
@@ -55,7 +55,8 @@ def add_location_to_db(data):
             "lat": location.get_lat_float()}
     return {
             "code":200,
-            "data": data
+            "data": data,
+            "id": str(location.uuid)
         }
 
 def add_location(request):
@@ -78,15 +79,15 @@ def update_location_in_db(data):
         return {"code":400, "error": ",".join(missing_keys) + " is/are required fields."}
 
     location = Location.objects.filter(
-        id=data['id'], tour_operator=data['tour_operator_id']).first()
+        uuid=data['id'], tour_operator__uuid=data['tour_operator_id']).first()
     if location is None:
         return {"code":400, "error": "Location for given tour_operator_id doesnt exist."}
 
         #return HttpResponseBadRequest(json.dumps({"error": "Location for given tour_operator_id doesnt exist."}), content_type='application/json')
 
     touroperator = Touroperator.objects.filter(
-        id=data['tour_operator_id']).first()
-    user = User.objects.filter(id=data['created_by_id']).first()
+        uuid=data['tour_operator_id']).first()
+    user = User.objects.filter(uuid=data['created_by_id']).first()
 
     # Check if another location with the same name, city, state, and country exists
     if Location.objects.filter(
@@ -95,7 +96,7 @@ def update_location_in_db(data):
         state=data['state'],
         country=data['country'],
         name=data['name']
-    ).exclude(id=data['id']).exists():
+    ).exclude(uuid=data['id']).exists():
         return {"code":422, "error": "A location with these details already exists."}
         #return HttpResponseBadRequest(json.dumps({"error": "A location with these details already exists."}), content_type='application/json')
 
@@ -123,9 +124,9 @@ def update_location_in_db(data):
     location.save()
 
     loc = {
-        "id": location.id,
-        "tour_operator_id": location.tour_operator.id,
-        "created_by_id": location.created_by.id,
+        "id": str(location.uuid),
+        "tour_operator_id": str(location.tour_operator.uuid),
+        "created_by_id": str(location.created_by.uuid),
         "city": location.city,
         "state": location.state,
         "country": location.country,
@@ -140,7 +141,8 @@ def update_location_in_db(data):
 
 def update_location(request):
     if request.method == 'POST':
-        resp = json.loads(request.body.decode("utf-8"))
+        data = json.loads(request.body.decode("utf-8"))
+        resp = update_location_in_db(data)
         if resp['code'] == 200:
             return HttpResponse(json.dumps(resp['data']), content_type='application/json')
         else:
@@ -158,14 +160,14 @@ def get_locations(request):
         if tour_operator_id is None:
             return HttpResponseBadRequest(json.dumps({"error": "tour_operator_id is required field"}), content_type='application/json')
 
-        location = Location.objects.filter(tour_operator_id=tour_operator_id)
+        location = Location.objects.filter(tour_operator__uuid=tour_operator_id)
 
         locations = []
         for loc in location:
             locations.append({
-                "id": loc.id,
-                "tour_operator_id": loc.tour_operator.id,
-                "created_by_id": loc.created_by.id,
+                "id": str(loc.uuid),
+                "tour_operator_id": str(loc.tour_operator.uuid),
+                "created_by_id": str(loc.created_by.uuid),
                 "city": loc.city,
                 "state": loc.state,
                 "country": loc.country,
@@ -205,7 +207,7 @@ def delete_location(request):
 
     try:
         # Get the location and verify it belongs to the tour operator
-        location = Location.objects.get(id=location_id, tour_operator_id=tour_operator_id)
+        location = Location.objects.get(uuid=location_id, tour_operator__uuid=tour_operator_id)
         location_name = location.name
 
         # Check if location is used by any hotels

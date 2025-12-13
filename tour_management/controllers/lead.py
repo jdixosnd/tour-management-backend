@@ -71,9 +71,9 @@ def get_lead(request):
 
             # Get lead package
             if lead_package_id:
-                lead_package = LeadPackage.objects.get(id=lead_package_id)
+                lead_package = LeadPackage.objects.get(uuid=lead_package_id)
             elif lead_id:
-                lead = Lead.objects.get(id=lead_id)
+                lead = Lead.objects.get(uuid=lead_id)
                 lead_package = LeadPackage.objects.filter(lead=lead).first()
                 if not lead_package:
                     return JsonResponse({"error": "No package found for this lead"}, status=404)
@@ -81,7 +81,7 @@ def get_lead(request):
                 return JsonResponse({"error": "Either lead_package_id or lead_id is required"}, status=400)
 
             lead = lead_package.lead
-            tour_operator_id = lead.tour_operator.id
+            tour_operator_id = str(lead.tour_operator.uuid)
             day_wise_details = []
 
             # Get destination mappings
@@ -108,7 +108,7 @@ def get_lead(request):
 
                 cardealer_details = [
                     {
-                        "id": dealer_mapping.car_dealer.id,
+                        "id": str(dealer_mapping.car_dealer.uuid),
                         "dealer_name": dealer_mapping.car_dealer.name,
                         "contact_no": dealer_mapping.car_dealer.contact_no,
                         "transport_types": get_transportdetails_from_db(dealer_mapping.car_dealer.id)
@@ -135,9 +135,9 @@ def get_lead(request):
                         location = {}
                         if itinerary.location is not None:
                             location = {
-                                "id": itinerary.location.id,
-                                "tour_operator_id": itinerary.location.tour_operator.id if itinerary.location.tour_operator else None,
-                                "created_by_id": itinerary.location.created_by.id if itinerary.location.created_by else None,
+                                "id": str(itinerary.location.uuid),
+                                "tour_operator_id": str(itinerary.location.tour_operator.uuid) if itinerary.location.tour_operator else None,
+                                "created_by_id": str(itinerary.location.created_by.uuid) if itinerary.location.created_by else None,
                                 "city": itinerary.location.city,
                                 "state": itinerary.location.state,
                                 "country": itinerary.location.country,
@@ -160,7 +160,7 @@ def get_lead(request):
                             "sequence": lii.sequence,
                             "location": location,
                             "images": activity_images,
-                            "itinerary_item_id": lii.itinerary_item.id
+                            "itinerary_item_id": str(lii.itinerary_item.uuid)
                         })
 
                 # Build day-wise details
@@ -192,8 +192,8 @@ def get_lead(request):
                     if mapping.hotel:
                         # Include room selection details
                         hotel_data = {
-                            "hotel_id": mapping.hotel.id,
-                            "selected_room_type_id": mapping.selected_room_type.id if mapping.selected_room_type else None,
+                            "hotel_id": str(mapping.hotel.uuid),
+                            "selected_room_type_id": str(mapping.selected_room_type.uuid) if mapping.selected_room_type else None,
                             "room_quantity": mapping.room_quantity
                         }
                         # Include room snapshot if available
@@ -212,7 +212,7 @@ def get_lead(request):
                     })
 
                 package_options_data.append({
-                    "id": option.id,
+                    "id": str(option.uuid),
                     "name": option.name,
                     "amount": float(option.amount),
                     "description": option.description,
@@ -228,7 +228,16 @@ def get_lead(request):
                     for hotel_info in day_mapping['hotel_ids']:
                         hotel_id = hotel_info['hotel_id']
                         # Fetch full hotel details
-                        full_hotel_details = get_hotel_by_id(hotel_id)
+                        # Assuming get_hotel_by_id can check UUID if we modify it, OR we need to resolve UUID here.
+                        # Since hotel_id above is now UUID (from line 195/196), we need to change how we fetch.
+                        # Wait, get_hotel_by_id is likely using ID. I need to check `hotel.py`.
+                        # If I change hotel_id in response to UUID, then here 'hotel_id' is UUID.
+                        # But get_hotel_by_id probably expects Integer ID?
+                        # I will address this by fetching the Hotel object by UUID first, then passing its ID to get_hotel_by_id (if get_hotel_by_id needs ID)
+                        # OR update get_hotel_by_id to support UUID.
+                        # For now, let's look up the hotel by UUID to get the object.
+                        hotel_obj = Hotel.objects.get(uuid=hotel_id)
+                        full_hotel_details = get_hotel_by_id(hotel_obj.id)
                         
                         # Merge room selection if available
                         if 'selected_room_type' in hotel_info:
@@ -248,9 +257,9 @@ def get_lead(request):
 
             # Structure final lead package data (matching package API response format)
             lead_package_data = {
-                "id": lead_package.id,
+                "id": str(lead_package.uuid),
                 "name": lead_package.name,
-                "destination_id": lead_package.destination.id if lead_package.destination else None,
+                "destination_id": str(lead_package.destination.uuid) if lead_package.destination else None,
                 "description": lead_package.description,
                 "pax_size": lead_package.pax_size,
                 "contains_travel_fare": lead_package.contains_travel_fare,
@@ -270,9 +279,9 @@ def get_lead(request):
 
             # Include lead metadata
             response_data = {
-                "lead_id": lead.id,
+                "lead_id": str(lead.uuid),
                 "customer": {
-                    "id": lead.customer.id,
+                    "id": str(lead.customer.uuid),
                     "name": lead.customer.name,
                     "phone": lead.customer.phone,
                     "email": lead.customer.email,
@@ -311,7 +320,7 @@ def get_all_leads(request):
                 return JsonResponse({"error": "tour_operator_id is required"}, status=400)
 
             # Verify tour operator exists
-            tour_operator = Touroperator.objects.get(id=tour_operator_id)
+            tour_operator = Touroperator.objects.get(uuid=tour_operator_id)
 
             # Get all leads for this tour operator
             leads = Lead.objects.filter(tour_operator=tour_operator).select_related(
@@ -354,14 +363,14 @@ def get_all_leads(request):
                     total_activities = LeadItineraryItem.objects.filter(lead_package=lead_package).count()
 
                     package_data = {
-                        "id": lead_package.id,
+                        "id": str(lead_package.uuid),
                         "name": lead_package.name,
                         "description": lead_package.description,
                         "type": lead_package.type,
                         "no_of_days": lead_package.no_of_days,
                         "package_amount": float(lead_package.package_amount or 0),
                         "destination": {
-                            "id": lead_package.destination.id if lead_package.destination else None,
+                            "id": str(lead_package.destination.uuid) if lead_package.destination else None,
                             "name": lead_package.destination.name if lead_package.destination else None
                         },
                         "image": first_image,
@@ -373,19 +382,19 @@ def get_all_leads(request):
 
                 # Build lead card data
                 lead_data = {
-                    "lead_id": lead.id,
+                    "lead_id": str(lead.uuid),
                     "status": lead.status,
                     "created_at": lead.created_at.isoformat() if lead.created_at else None,
                     "travel_start_date": lead.travel_start_date.isoformat() if lead.travel_start_date else None,
                     "travel_end_date": lead.travel_end_date.isoformat() if lead.travel_end_date else None,
                     "customer": {
-                        "id": lead.customer.id,
+                        "id": str(lead.customer.uuid),
                         "name": lead.customer.name,
                         "phone": lead.customer.phone,
                         "email": lead.customer.email
                     },
                     "created_by": {
-                        "id": lead.created_by.id if lead.created_by else None,
+                        "id": str(lead.created_by.uuid) if lead.created_by else None,
                         "username": lead.created_by.username if lead.created_by else None
                     },
                     "package": package_data
@@ -435,12 +444,12 @@ def update_lead(request):
                 lead_id = data['lead_id']
 
                 # Check if lead exists
-                if not Lead.objects.filter(id=lead_id).exists():
+                if not Lead.objects.filter(uuid=lead_id).exists():
                     return JsonResponse({
                         "error": f"Lead with id {lead_id} not found"
                     }, status=404)
 
-                lead = Lead.objects.get(id=lead_id)
+                lead = Lead.objects.get(uuid=lead_id)
 
                 # Get the lead package for this lead
                 lead_package = LeadPackage.objects.filter(lead=lead).first()
@@ -449,7 +458,7 @@ def update_lead(request):
                         "error": f"No package found for lead {lead_id}"
                     }, status=404)
 
-                created_by = User.objects.get(id=data['created_by'])
+                created_by = User.objects.get(uuid=data['created_by'])
                 tour_operator = lead_package.tour_operator
 
                 # Get package snapshot
@@ -677,8 +686,8 @@ def update_lead(request):
                 # Response after successful update
                 return JsonResponse({
                     "message": "Lead updated successfully",
-                    "lead_id": lead_package.lead.id,
-                    "lead_package_id": lead_package.id
+                    "lead_id": str(lead_package.lead.uuid),
+                    "lead_package_id": str(lead_package.uuid)
                 }, status=200)
 
         except LeadPackage.DoesNotExist:
@@ -714,9 +723,9 @@ def add_lead(request):
         try:
             with transaction.atomic():
                 # Fetch main entities
-                tour_operator = Touroperator.objects.get(id=data['tour_operator_id'])
-                created_by = User.objects.get(id=data['created_by'])
-                customer = Customer.objects.get(id=data['customer_id'])
+                tour_operator = Touroperator.objects.get(uuid=data['tour_operator_id'])
+                created_by = User.objects.get(uuid=data['created_by'])
+                customer = Customer.objects.get(uuid=data['customer_id'])
 
                 # Get package snapshot
                 pkg_snapshot = data['package_snapshot']
@@ -725,7 +734,7 @@ def add_lead(request):
                 destination_id = pkg_snapshot.get('destination_id')
                 if not destination_id:
                     return JsonResponse({"error": "destination_id is required in package_snapshot"}, status=400)
-                destination = Destination.objects.get(id=destination_id)
+                destination = Destination.objects.get(uuid=destination_id)
 
                 # Create the Lead record
                 lead = Lead.objects.create(
@@ -848,7 +857,7 @@ def add_lead(request):
                         # hotel_data can be either an ID or a full hotel object
                         hotel_id = hotel_data if isinstance(hotel_data, int) else hotel_data.get('id')
                         if hotel_id:
-                            hotel = Hotel.objects.get(id=hotel_id)
+                            hotel = Hotel.objects.get(uuid=hotel_id)
                             LeadHotelMapping.objects.create(
                                 lead_package=lead_package,
                                 hotel=hotel,
@@ -863,7 +872,7 @@ def add_lead(request):
                         # car_dealer_data can be either an ID or a full car dealer object
                         car_dealer_id = car_dealer_data if isinstance(car_dealer_data, int) else car_dealer_data.get('id')
                         if car_dealer_id:
-                            car_dealer = Cardealer.objects.get(id=car_dealer_id)
+                            car_dealer = Cardealer.objects.get(uuid=car_dealer_id)
                             LeadCarDealerMapping.objects.create(
                                 lead_package=lead_package,
                                 car_dealer=car_dealer,
@@ -906,9 +915,9 @@ def add_lead(request):
                                     selected_room_type_id = None
                                     room_quantity = None
                                     room_snapshot = None
-
-                                hotel = Hotel.objects.get(id=hotel_id)
-                                selected_room = Room.objects.get(id=selected_room_type_id) if selected_room_type_id else None
+                                
+                                hotel = Hotel.objects.get(uuid=hotel_id)
+                                selected_room = Room.objects.get(uuid=selected_room_type_id) if selected_room_type_id else None
 
                                 LeadPackageOptionHotelMapping.objects.create(
                                     lead_package_option=lead_package_option,
@@ -935,8 +944,8 @@ def add_lead(request):
                 # Response after successful lead creation
                 return JsonResponse({
                     "message": "Lead created successfully",
-                    "lead_id": lead.id,
-                    "lead_package_id": lead_package.id
+                    "lead_id": str(lead.uuid),
+                    "lead_package_id": str(lead_package.uuid)
                 }, status=201)
 
         except Touroperator.DoesNotExist:
@@ -995,14 +1004,14 @@ def delete_lead(request):
 
         # Get the lead and verify it belongs to the tour operator
         try:
-            lead = Lead.objects.get(id=lead_id)
+            lead = Lead.objects.get(uuid=lead_id)
         except Lead.DoesNotExist:
             return JsonResponse(
                 {"error": "Lead not found."},
                 status=404
             )
 
-        if lead.tour_operator.id != tour_operator_id:
+        if lead.tour_operator.uuid != tour_operator_id:
             return JsonResponse(
                 {"error": "Lead does not belong to the specified tour operator."},
                 status=403

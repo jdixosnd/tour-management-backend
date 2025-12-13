@@ -28,8 +28,8 @@ def add_user(request):
 
       
 
-        touroperator = Touroperator.objects.filter(id = data['tour_operator_id'])[0]
-        total_active_users = User.objects.filter(tour_operator_id=data['tour_operator_id'],is_active=True).count()
+        touroperator = Touroperator.objects.filter(uuid = data['tour_operator_id'])[0]
+        total_active_users = User.objects.filter(tour_operator_id__uuid=data['tour_operator_id'],is_active=True).count()
         if total_active_users >= touroperator.get_max_users():
             return JsonResponse({
                 "code":400,
@@ -50,7 +50,7 @@ def add_user(request):
             return JsonResponse({
                 "code":200,
                     "message": "User added successfully",
-                    "user_id": user.id
+                    "user_id": str(user.uuid)
                 }, status=201)
 
 def get_users(request):
@@ -67,16 +67,16 @@ def get_users(request):
                 tour_operator_id = data['tour_operator_id']
 
             if user_id is not None:
-                users = User.objects.filter(id =user_id)
+                users = User.objects.filter(uuid =user_id)
             elif tour_operator_id  is not None:
-                users = User.objects.filter(tour_operator_id =tour_operator_id)
+                users = User.objects.filter(tour_operator_id__uuid =tour_operator_id)
             else:
                 users = User.objects.all()
             
             for user in users:
                 result.append({
-                            "id": user.id,
-                            "tour_operator_id":user.tour_operator_id.id,
+                            "id": str(user.uuid),
+                            "tour_operator_id":str(user.tour_operator_id.uuid) if user.tour_operator_id else None,
                             "name": user.name,
                             "email": user.email,
                             "role": user.role,
@@ -124,8 +124,8 @@ def validate_user(request):
         # Verify the password
         if check_password(password, user.password_hash):
             user_data = {
-                        "id": user.id,
-                        "tour_operator_id":user.tour_operator_id.id,
+                        "id": str(user.uuid),
+                        "tour_operator_id":str(user.tour_operator_id.uuid) if user.tour_operator_id else None,
                         "name": user.name,
                         "email": user.email,
                         "role": user.role,
@@ -160,7 +160,7 @@ def update_user(request):
 
 
 
-            user = User.objects.get(models.Q(id=id))
+            user = User.objects.get(models.Q(uuid=id))
             total_active_users = User.objects.filter(tour_operator_id=user.tour_operator_id,is_active=True).count()
             if user.is_active == False:
                 if total_active_users >= user.tour_operator_id.get_max_users():
@@ -169,7 +169,7 @@ def update_user(request):
                         "message": "Current user cannot be marked as active. Max active user threshold("+str(total_active_users)+") exceeds!",
                         "total_active_users":total_active_users
                     }, status=400)
-            user.id=id
+            # user.id=id # Cannot assign UUID to integer based ID
             user.name=name
             user.role=role
             user.mobileno=mobileno

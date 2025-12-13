@@ -72,7 +72,7 @@ def add_booking(request):
         with transaction.atomic():
             # Get and validate lead
             try:
-                lead = Lead.objects.select_related('customer', 'tour_operator').get(id=data['lead_id'])
+                lead = Lead.objects.select_related('customer', 'tour_operator').get(uuid=data['lead_id'])
             except Lead.DoesNotExist:
                 return JsonResponse({"error": f"Lead with id {data['lead_id']} not found"}, status=404)
 
@@ -84,7 +84,7 @@ def add_booking(request):
 
             # Get created_by user
             try:
-                created_by = User.objects.get(id=data['created_by'])
+                created_by = User.objects.get(uuid=data['created_by'])
             except User.DoesNotExist:
                 return JsonResponse({"error": f"User with id {data['created_by']} not found"}, status=404)
 
@@ -157,7 +157,7 @@ def add_booking(request):
 
                 if item_data.get('selected_hotel_id'):
                     try:
-                        selected_hotel = Hotel.objects.get(id=item_data['selected_hotel_id'])
+                        selected_hotel = Hotel.objects.get(uuid=item_data['selected_hotel_id'])
                         hotel_name = selected_hotel.name
                         hotel_description = selected_hotel.description or ''
 
@@ -165,7 +165,7 @@ def add_booking(request):
                         if item_data.get('selected_room_type_id'):
                             try:
                                 from ..models import Room
-                                selected_room_type = Room.objects.get(id=item_data['selected_room_type_id'])
+                                selected_room_type = Room.objects.get(uuid=item_data['selected_room_type_id'])
                                 room_quantity = item_data.get('room_quantity')
                                 room_snapshot = item_data.get('room_snapshot')  # Full room details
                             except Room.DoesNotExist:
@@ -187,7 +187,7 @@ def add_booking(request):
 
                 if item_data.get('selected_car_dealer_id'):
                     try:
-                        selected_car_dealer = Cardealer.objects.get(id=item_data['selected_car_dealer_id'])
+                        selected_car_dealer = Cardealer.objects.get(uuid=item_data['selected_car_dealer_id'])
                         car_dealer_name = selected_car_dealer.name
                     except Cardealer.DoesNotExist:
                         pass
@@ -222,8 +222,8 @@ def add_booking(request):
 
             return JsonResponse({
                 "message": "Booking created successfully",
-                "transaction_id": booking.id,
-                "booking_id": booking.id
+                "transaction_id": str(booking.uuid),
+                "booking_id": str(booking.uuid)
             }, status=201)
 
     except json.JSONDecodeError:
@@ -267,7 +267,7 @@ def get_booking(request):
         try:
             booking = Transaction.objects.select_related(
                 'customer', 'tour_operator', 'created_by'
-            ).get(id=data['transaction_id'])
+            ).get(uuid=data['transaction_id'])
         except Transaction.DoesNotExist:
             return JsonResponse({"error": f"Booking with id {data['transaction_id']} not found"}, status=404)
 
@@ -278,24 +278,24 @@ def get_booking(request):
 
         # Build response
         response_data = {
-            "transaction_id": booking.id,
-            "booking_id": booking.id,
-            "lead_id": booking.lead.id if booking.lead else None,
+            "transaction_id": str(booking.uuid),
+            "booking_id": str(booking.uuid),
+            "lead_id": str(booking.lead.uuid) if booking.lead else None,
 
             "customer": {
-                "id": booking.customer.id,
+                "id": str(booking.customer.uuid),
                 "name": booking.customer.name,
                 "email": booking.customer.email,
                 "phone": booking.customer.phone
             },
 
             "tour_operator": {
-                "id": booking.tour_operator.id,
+                "id": str(booking.tour_operator.uuid),
                 "name": booking.tour_operator.name
             },
 
             "destination": {
-                "id": booking.destination.id,
+                "id": str(booking.destination.uuid),
                 "name": booking.destination.name
             } if booking.destination else None,
 
@@ -322,20 +322,20 @@ def get_booking(request):
                     "title": item.title,
                     "description": item.description,
                     "hotel": {
-                        "id": item.selected_hotel.id if item.selected_hotel else None,
+                        "id": str(item.selected_hotel.uuid) if item.selected_hotel else None,
                         "name": item.hotel_name,
                         "description": item.hotel_description,
                         "images": item.hotel_images,
                         "quick_hotel_data": item.quick_hotel_data,
                         # Room selection details
-                        "selected_room_type_id": item.selected_room_type.id if item.selected_room_type else None,
+                        "selected_room_type_id": str(item.selected_room_type.uuid) if item.selected_room_type else None,
                         "room_quantity": item.room_quantity,
                         "room_snapshot": item.room_snapshot
                     },
                     "vehicle_type": item.vehicle_type,
                     # DEPRECATED: Old transport structure - kept for backward compatibility
                     "transport": {
-                        "id": item.selected_car_dealer.id if item.selected_car_dealer else None,
+                        "id": str(item.selected_car_dealer.uuid) if item.selected_car_dealer else None,
                         "name": item.car_dealer_name,
                         "car_type": item.car_type
                     },
@@ -372,7 +372,7 @@ def get_booking(request):
             },
 
             "created_by": {
-                "id": booking.created_by.id,
+                "id": str(booking.created_by.uuid),
                 "username": booking.created_by.username
             }
         }
@@ -432,10 +432,10 @@ def get_all_bookings(request):
 
         # Apply filters
         if 'tour_operator' in data:
-            bookings = bookings.filter(tour_operator_id=data['tour_operator'])
+            bookings = bookings.filter(tour_operator__uuid=data['tour_operator'])
 
         if 'customer_id' in data:
-            bookings = bookings.filter(customer_id=data['customer_id'])
+            bookings = bookings.filter(customer__uuid=data['customer_id'])
 
         if 'booking_status' in data:
             bookings = bookings.filter(booking_status=data['booking_status'])
@@ -444,7 +444,7 @@ def get_all_bookings(request):
             bookings = bookings.filter(payment_status=data['payment_status'])
 
         if 'destination_id' in data:
-            bookings = bookings.filter(destination_id=data['destination_id'])
+            bookings = bookings.filter(destination__uuid=data['destination_id'])
 
         if 'from_date' in data:
             bookings = bookings.filter(travel_start_date__gte=data['from_date'])
@@ -458,10 +458,10 @@ def get_all_bookings(request):
         # Build response
         bookings_list = [
             {
-                "transaction_id": booking.id,
-                "booking_id": booking.id,
-                "lead_id": booking.lead.id if booking.lead else None,
-                "customer_id": booking.customer.id,
+                "transaction_id": str(booking.uuid),
+                "booking_id": str(booking.uuid),
+                "lead_id": str(booking.lead.uuid) if booking.lead else None,
+                "customer_id": str(booking.customer.uuid),
                 "customer_name": booking.customer.name,
                 "customer_email": booking.customer.email,
                 "package_name": booking.package_name,
@@ -525,7 +525,7 @@ def update_booking(request):
 
         with transaction.atomic():
             try:
-                booking = Transaction.objects.get(id=data['transaction_id'])
+                booking = Transaction.objects.get(uuid=data['transaction_id'])
             except Transaction.DoesNotExist:
                 return JsonResponse({"error": f"Booking with id {data['transaction_id']} not found"}, status=404)
 
@@ -570,8 +570,8 @@ def update_booking(request):
 
             return JsonResponse({
                 "message": "Booking updated successfully",
-                "transaction_id": booking.id,
-                "booking_id": booking.id
+                "transaction_id": str(booking.uuid),
+                "booking_id": str(booking.uuid)
             }, status=200)
 
     except json.JSONDecodeError:
@@ -611,14 +611,14 @@ def delete_booking(request):
 
         # Get the transaction and verify it belongs to the tour operator
         try:
-            booking = Transaction.objects.get(id=transaction_id)
+            booking = Transaction.objects.get(uuid=transaction_id)
         except Transaction.DoesNotExist:
             return JsonResponse(
                 {"error": "Booking not found."},
                 status=404
             )
 
-        if booking.tour_operator.id != tour_operator_id:
+        if booking.tour_operator.uuid != tour_operator_id:
             return JsonResponse(
                 {"error": "Booking does not belong to the specified tour operator."},
                 status=403

@@ -29,8 +29,8 @@ def add_cardealer(request):
         try:
             with transaction.atomic():
                 # Fetch tour operator and user
-                touroperator = Touroperator.objects.get(id=data['tour_operator_id'])
-                user = User.objects.get(id=data['created_by_id'])
+                touroperator = Touroperator.objects.get(uuid=data['tour_operator_id'])
+                user = User.objects.get(uuid=data['created_by_id'])
                 
                 # Check if CarDealer with the same contact_no exists for this tour operator
                 if Cardealer.objects.filter(tour_operator=touroperator, contact_no=data['contact_no']).exists():
@@ -74,7 +74,7 @@ def add_cardealer(request):
                         capacity=cartype_data['capacity']
                     )
                     cartypes.append({
-                        "id": cartype.id,
+                        "id": str(cartype.uuid),
                         "name": cartype.name,
                         "type": cartype.type,
                         "capacity": cartype.capacity,
@@ -83,13 +83,13 @@ def add_cardealer(request):
 
                 # Prepare result
                 result = {
-                    "id": cardealer.id,
-                    "tour_operator_id": cardealer.tour_operator.id,
-                    "created_by": cardealer.created_by.id,
+                    "id": str(cardealer.uuid),
+                    "tour_operator_id": str(cardealer.tour_operator.uuid),
+                    "created_by": str(cardealer.created_by.uuid),
                     "name": cardealer.name,
                     "contact_no": cardealer.contact_no,
                     "location": {
-                        "id": location.id,
+                        "id": str(location.uuid),
                         "city": location.city,
                         "state": location.state,
                         "country": location.country,
@@ -126,7 +126,7 @@ def update_cardealer(request):
             with transaction.atomic():
                 # Fetch car dealer and tour operator
                 cardealer = Cardealer.objects.select_related('location').filter(
-                    id=data['id'], tour_operator_id=data['tour_operator_id']
+                    uuid=data['id'], tour_operator__uuid=data['tour_operator_id']
                 ).first()
                 
                 if cardealer is None:
@@ -135,14 +135,14 @@ def update_cardealer(request):
                 # Update or reuse existing location
                 location_data = data['location']
                 location, created = Location.objects.get_or_create(
-                    tour_operator_id=data['tour_operator_id'],
+                    tour_operator__uuid=data['tour_operator_id'],
                     name=location_data['name'],
                     city=location_data['city'],
                     state=location_data['state'],
                     country=location_data['country'],
                     defaults={
-                        'created_by_id': data['created_by_id']
-                        
+                        # 'created_by_id': data['created_by_id'] # Use user object from lookup
+                        'created_by': User.objects.get(uuid=data['created_by_id'])
                     }
                 )
                 
@@ -172,7 +172,7 @@ def update_cardealer(request):
                         cartype_id = cartype_data.get('id')
                         if cartype_id:
                             # Update existing Car Type if it exists
-                            cartype = CarType.objects.filter(id=cartype_id, car_dealer=cardealer).first()
+                            cartype = CarType.objects.filter(uuid=cartype_id, car_dealer=cardealer).first()
                             if cartype:
                                 cartype.name = cartype_data['name']
                                 cartype.type = cartype_data['type']
@@ -188,7 +188,7 @@ def update_cardealer(request):
                                     type=cartype_data['type'],
                                     capacity=cartype_data['capacity']
                                 )
-                                existing_cartype_ids.add(new_cartype.id)
+                                existing_cartype_ids.add(new_cartype.uuid)
                         else:
                             # Create new Car Type if no ID is provided
                             new_cartype = CarType.objects.create(
@@ -198,24 +198,24 @@ def update_cardealer(request):
                                 type=cartype_data['type'],
                                 capacity=cartype_data['capacity']
                             )
-                            existing_cartype_ids.add(new_cartype.id)
+                            existing_cartype_ids.add(new_cartype.uuid)
 
                     # Delete any Car Types that are not in the updated list
-                    CarType.objects.filter(car_dealer=cardealer).exclude(id__in=existing_cartype_ids).delete()
+                    CarType.objects.filter(car_dealer=cardealer).exclude(uuid__in=existing_cartype_ids).delete()
 
                 # Prepare the response data
-                updated_cartypes = list(CarType.objects.filter(car_dealer=cardealer).values('id', 'name', 'type', 'capacity', 'created_at'))
+                updated_cartypes = [{"id": str(c.uuid), "name": c.name, "type": c.type, "capacity": c.capacity, "created_at": c.created_at} for c in CarType.objects.filter(car_dealer=cardealer)]
                 
                 cardealer_obj = {
-                    "id": cardealer.id,
-                    "tour_operator_id": cardealer.tour_operator.id,
-                    "created_by_id": cardealer.created_by.id,
+                    "id": str(cardealer.uuid),
+                    "tour_operator_id": str(cardealer.tour_operator.uuid),
+                    "created_by_id": str(cardealer.created_by.uuid),
                     "name": cardealer.name,
                     "contact_no": cardealer.contact_no,
                     "location": {
-                        "id": location.id,
-                        "tour_operator_id": location.tour_operator.id,
-                        "created_by_id": location.created_by.id,
+                        "id": str(location.uuid),
+                        "tour_operator_id": str(location.tour_operator.uuid),
+                        "created_by_id": str(location.created_by.uuid),
                         "city": location.city,
                         "state": location.state,
                         "country": location.country,
@@ -248,10 +248,10 @@ def add_car_type_for_cardealer(request):
             raise ValidationError(
                 ",".join(required_keys) + " are required fields.")
         touroperator = Touroperator.objects.filter(
-            id=data['tour_operator_id'])[0]
+            uuid=data['tour_operator_id'])[0]
 
         cardealer = Cardealer.objects.filter(
-            id=data['car_dealer'])[0]
+            uuid=data['car_dealer'])[0]
 
         cartype = CarType(tour_operator=touroperator,
                           car_dealer=cardealer,
@@ -263,8 +263,8 @@ def add_car_type_for_cardealer(request):
         return JsonResponse(data, safe=False)
  
 def fetch_car_types(cardealer_id):
-    cartypes = CarType.objects.filter(car_dealer_id=cardealer_id).values('id', 'name', 'type', 'capacity', 'tour_operator_id')
-    return list(cartypes)
+    cartypes = CarType.objects.filter(car_dealer__uuid=cardealer_id).all()
+    return [{"id": str(c.uuid), "name": c.name, "type": c.type, "capacity": c.capacity} for c in cartypes]
 
 def get_cardealer(request):
     result = []
@@ -285,15 +285,15 @@ def get_cardealer(request):
 
         # Fetch with select_related for optimization
         if cardealer_id:
-            cardealers = Cardealer.objects.filter(id=cardealer_id).select_related('tour_operator', 'created_by', 'location')
+            cardealers = Cardealer.objects.filter(uuid=cardealer_id).select_related('tour_operator', 'created_by', 'location')
         elif tour_operator_id:
-            cardealers = Cardealer.objects.filter(tour_operator=tour_operator_id).select_related('tour_operator', 'created_by', 'location')
+            cardealers = Cardealer.objects.filter(tour_operator__uuid=tour_operator_id).select_related('tour_operator', 'created_by', 'location')
 
         # Filter by destination if destination_id is provided
         if destination_id:
             try:
                 # Get the destination
-                destination = Destination.objects.get(id=destination_id)
+                destination = Destination.objects.get(uuid=destination_id)
 
                 # Get all location mappings for this destination
                 destination_mappings = StateCityToDestinationMapping.objects.filter(
@@ -307,7 +307,7 @@ def get_cardealer(request):
                 for mapping in destination_mappings:
                     # If mapping has a direct location reference, use it
                     if mapping.location:
-                        location_ids.append(mapping.location.id)
+                        location_ids.append(mapping.location.uuid)
                     else:
                         # Fallback to city/state matching for old data
                         city_state_filters.append({
@@ -322,7 +322,7 @@ def get_cardealer(request):
 
                     # Add direct location ID matches
                     if location_ids:
-                        location_query |= Q(location_id__in=location_ids)
+                        location_query |= Q(location__uuid__in=location_ids)
 
                     # Add city/state matches for backward compatibility
                     if city_state_filters:
@@ -341,16 +341,16 @@ def get_cardealer(request):
 
         for dealer in cardealers:
             dealer_data = {
-                "id": dealer.id,
-                "tour_operator_id": dealer.tour_operator.id,
-                "created_by_id": dealer.created_by.id,
+                "id": str(dealer.uuid),
+                "tour_operator_id": str(dealer.tour_operator.uuid),
+                "created_by_id": str(dealer.created_by.uuid),
                 "name": dealer.name,
                 "contact_no": dealer.contact_no,
                 "created_at": str(dealer.created_at),
                 "location": {
-                    "id": dealer.location.id,
-                    "tour_operator_id": dealer.location.tour_operator.id,
-                    "created_by_id": dealer.location.created_by.id,
+                    "id": str(dealer.location.uuid),
+                    "tour_operator_id": str(dealer.location.tour_operator.uuid),
+                    "created_by_id": str(dealer.location.created_by.uuid),
                     "city": dealer.location.city,
                     "state": dealer.location.state,
                     "country": dealer.location.country,
@@ -394,9 +394,9 @@ def delete_cardealer(request):
 
     try:
         # Get the car dealer and verify it belongs to the tour operator
-        cardealer = Cardealer.objects.get(id=cardealer_id)
+        cardealer = Cardealer.objects.get(uuid=cardealer_id)
 
-        if cardealer.tour_operator.id != tour_operator_id:
+        if cardealer.tour_operator.uuid != tour_operator_id:
             return JsonResponse(
                 {"error": "Car dealer does not belong to the specified tour operator."},
                 status=403
