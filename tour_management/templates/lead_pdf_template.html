@@ -525,28 +525,58 @@
                     {% for cell in row.merged_options %}
                         <td colspan="{{ cell.colspan }}" style="padding: 8px; vertical-align: top; border-left: 1px solid #eee; {% if cell.colspan > 1 %}background-color: #fafafa;{% endif %}">
                             {% if cell.valid %}
-                                <div style="font-weight: 600; color: #0d47a1;">{{ cell.hotel_name }}</div>
-                                {% if cell.rating > 0 %}
-                                    <div class="rating-stars" style="font-size: 10px; margin-bottom: 4px;">
-                                        {% if cell.rating >= 1 %}★{% endif %}
-                                        {% if cell.rating >= 2 %}★{% endif %}
-                                        {% if cell.rating >= 3 %}★{% endif %}
-                                        {% if cell.rating >= 4 %}★{% endif %}
-                                        {% if cell.rating >= 5 %}★{% endif %}
+                                {% if cell.hotels %}
+                                    {% for hotel in cell.hotels %}
+                                        <div style="margin-bottom: 8px; {% if not forloop.last %}border-bottom: 1px dashed #eee; padding-bottom: 8px;{% endif %}">
+                                            <div style="font-weight: 600; color: #0d47a1;">{{ hotel.hotel_name }}</div>
+                                            {% if hotel.rating > 0 %}
+                                                <div class="rating-stars" style="font-size: 10px; margin-bottom: 4px;">
+                                                    {% if hotel.rating >= 1 %}★{% endif %}
+                                                    {% if hotel.rating >= 2 %}★{% endif %}
+                                                    {% if hotel.rating >= 3 %}★{% endif %}
+                                                    {% if hotel.rating >= 4 %}★{% endif %}
+                                                    {% if hotel.rating >= 5 %}★{% endif %}
+                                                </div>
+                                            {% endif %}
+                                            
+                                            <div style="font-size: 11px; margin-top: 4px;">
+                                                {% if hotel.room_type %}
+                                                    <div>Room: <strong>{{ hotel.room_type }}</strong></div>
+                                                {% endif %}
+                                                {% if hotel.meal_plan %}
+                                                    <div>Meal: {{ hotel.meal_plan }}</div>
+                                                {% endif %}
+                                                {% if hotel.nights > 1 %}
+                                                    <div>Stay: {{ hotel.nights }} Nights</div>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    {% endfor %}
+                                {% else %}
+                                    {# Fallback for backward compatibility #}
+                                    <div style="font-weight: 600; color: #0d47a1;">{{ cell.hotel_name }}</div>
+                                    {% if cell.rating > 0 %}
+                                        <div class="rating-stars" style="font-size: 10px; margin-bottom: 4px;">
+                                            {% if cell.rating >= 1 %}★{% endif %}
+                                            {% if cell.rating >= 2 %}★{% endif %}
+                                            {% if cell.rating >= 3 %}★{% endif %}
+                                            {% if cell.rating >= 4 %}★{% endif %}
+                                            {% if cell.rating >= 5 %}★{% endif %}
+                                        </div>
+                                    {% endif %}
+                                    
+                                    <div style="font-size: 11px; margin-top: 4px;">
+                                        {% if cell.room_type %}
+                                            <div>Room: <strong>{{ cell.room_type }}</strong></div>
+                                        {% endif %}
+                                        {% if cell.meal_plan %}
+                                            <div>Meal: {{ cell.meal_plan }}</div>
+                                        {% endif %}
+                                        {% if cell.price %}
+                                            <div style="color: #444;">Price: {{ cell.price }}</div>
+                                        {% endif %}
                                     </div>
                                 {% endif %}
-                                
-                                <div style="font-size: 11px; margin-top: 4px;">
-                                    {% if cell.room_type %}
-                                        <div>Room: <strong>{{ cell.room_type }}</strong></div>
-                                    {% endif %}
-                                    {% if cell.meal_plan %}
-                                        <div>Meal: {{ cell.meal_plan }}</div>
-                                    {% endif %}
-                                    {% if cell.price %}
-                                        <div style="color: #444;">Price: {{ cell.price }}</div>
-                                    {% endif %}
-                                </div>
                             {% else %}
                                 <span style="color: #999;">-</span>
                             {% endif %}

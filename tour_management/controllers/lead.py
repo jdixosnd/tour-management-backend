@@ -319,57 +319,91 @@ def get_lead(request):
                 # Calculate dates
                 if travel_start_date:
                     try:
-                        check_in = travel_start_date + timedelta(days=segment['start_day'] - 1)
-                        # Check-out is next day after end_day? Or assuming end_day is included? 
-                        # Usually logic: Day 1-2 means stay night 1 & 2, checkout Day 3? 
-                        # Or Day 1-2 means stay Day 1 night, checkout Day 2?
-                        # Let's assume 'num_nights' = count of days in segment
-                        num_nights = len(segment['days'])
-                        check_out = check_in + timedelta(days=num_nights)
-                        row['dates'] = f"{check_in.strftime('%d %b')} - {check_out.strftime('%d %b')}"
+                        # Calculate inclusive dates for the stay/activity
+                        # From: "28 Jan - 30 Jan" (Check-out style) -> To: "28 Jan - 29 Jan" (Activity style)
+                        start_date = travel_start_date + timedelta(days=segment['start_day'] - 1)
+                        end_date = travel_start_date + timedelta(days=segment['end_day'] - 1)
+                        
+                        if start_date == end_date:
+                            row['dates'] = start_date.strftime('%d %b')
+                        else:
+                            row['dates'] = f"{start_date.strftime('%d %b')} - {end_date.strftime('%d %b')}"
                     except:
                         pass
 
                 row['options'] = []
                 
-                # For each Option, find hotel for this segment
+                # For each Option, find ALL hotels for this segment (could be split stay)
                 for option in package_options_data:
-                    # Find hotel for the FIRST day of this segment (assuming consistency)
-                    target_day = segment['start_day']
-                    
-                    # Find mapping for this option and day
-                    mapping = LeadPackageOptionHotelMapping.objects.filter(
+                    # Find mappings for this option across ALL days of the segment
+                    mappings = LeadPackageOptionHotelMapping.objects.filter(
                         lead_package_option__uuid=option['id'],
-                        day=target_day 
-                    ).select_related('hotel', 'selected_room_type').first()
+                        day__in=segment['days']
+                    ).select_related('hotel', 'selected_room_type', 'lead_package_option').order_by('day')
                     
-                    cell_data = {'id': option['id'], 'name': option['name'], 'valid': False}
+                    cell_data = {'id': option['id'], 'name': option['name'], 'valid': False, 'hotels': []}
                     
-                    if mapping:
+                    if mappings.exists():
                         cell_data['valid'] = True
                         
-                        # Hotel details
-                        if mapping.hotel:
-                            cell_data['hotel_name'] = mapping.hotel.name
-                            cell_data['rating'] = float(mapping.hotel.ratings) if mapping.hotel.ratings else 0
-                            cell_data['meal_plan'] = getattr(mapping.hotel, 'meal_type', '') or ''
+                        # Process mappings to identify unique hotels/stays using aggregation
+                        # Aggregate based on 'signature' to deduplicate split stays (e.g. Day 1, 3 same hotel)
+                        
+                        hotel_groups = {}
+                        
+                        for mapping in mappings:
+                            # Extract details
+                            hotel_name = ""
+                            rating = 0
+                            meal_plan = ""
+                            room_type = ""
+                            price = 0
+                            is_quick = False
                             
-                            # Room details
-                            if mapping.room_snapshot:
-                                cell_data['room_type'] = mapping.room_snapshot.get('name', '')
-                                cell_data['price'] = mapping.room_snapshot.get('price_per_night', 0)
-                            elif mapping.selected_room_type:
-                                cell_data['room_type'] = mapping.selected_room_type.name
-                                cell_data['price'] = mapping.selected_room_type.price_per_night
+                            if mapping.hotel:
+                                hotel_name = mapping.hotel.name
+                                rating = float(mapping.hotel.ratings) if mapping.hotel.ratings else 0
+                                meal_plan = getattr(mapping.hotel, 'meal_type', '') or ''
                                 
-                        elif mapping.quick_hotel_data:
-                            cell_data['hotel_name'] = mapping.quick_hotel_data.get('hotel_name')
-                            cell_data['room_type'] = mapping.quick_hotel_data.get('room_type')
-                            cell_data['price'] = mapping.quick_hotel_data.get('price_per_night')
-                            cell_data['meal_plan'] = mapping.quick_hotel_data.get('meal_type', '')
-                            cell_data['rating'] = 0
+                                if mapping.room_snapshot:
+                                    room_type = mapping.room_snapshot.get('name', '')
+                                    price = mapping.room_snapshot.get('price_per_night', 0)
+                                elif mapping.selected_room_type:
+                                    room_type = mapping.selected_room_type.name
+                                    price = mapping.selected_room_type.price_per_night
+                            elif mapping.quick_hotel_data:
+                                is_quick = True
+                                hotel_name = mapping.quick_hotel_data.get('hotel_name')
+                                room_type = mapping.quick_hotel_data.get('room_type')
+                                price = mapping.quick_hotel_data.get('price_per_night')
+                                meal_plan = mapping.quick_hotel_data.get('meal_type', '')
+                            
+                            # Create entry signature 
+                            entry_sig = f"{hotel_name}-{room_type}-{meal_plan}"
+                            
+                            if entry_sig not in hotel_groups:
+                                hotel_groups[entry_sig] = {
+                                    'sig': entry_sig,
+                                    'hotel_name': hotel_name,
+                                    'rating': rating,
+                                    'meal_plan': meal_plan,
+                                    'room_type': room_type,
+                                    'price': price,
+                                    'days': set()
+                                }
+                            
+                            hotel_groups[entry_sig]['days'].add(mapping.day)
+                        
+                        # Convert groups to list and calculate nights
+                        for sig, group in hotel_groups.items():
+                            group['nights'] = len(group['days'])
+                            del group['days']  # Remove set to enable JSON serialization
+                            cell_data['hotels'].append(group)
 
-                        cell_data['details_hash'] = f"{cell_data.get('hotel_name')}-{cell_data.get('room_type')}-{cell_data.get('meal_plan')}"
+                        # Create a composite hash of all hotels for colspan merging logic
+                        # Sort by signature to ensure consistent hashing
+                        cell_data['hotels'].sort(key=lambda x: x['sig'])
+                        cell_data['details_hash'] = "|".join([h['sig'] for h in cell_data['hotels']])
 
                     else:
                         cell_data['text'] = "-"
