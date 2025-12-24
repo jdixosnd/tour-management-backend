@@ -570,7 +570,12 @@
         {% for day in package.itinerary_details %}
     <div class="itinerary-day">
         <div class="day-header">
-            <h3>Day {{ day.day }}: {{ day.title }}</h3>
+            <h3>
+                Day {{ day.day }}: {{ day.title }}
+                {% if day.date %}
+                <span style="font-size: 0.7em; color: #666; font-weight: normal; margin-left: 10px;">{{ day.date }}</span>
+                {% endif %}
+            </h3>
             <span class="location">{{ day.city }}, {{ day.state }}</span>
         </div>
         

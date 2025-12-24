@@ -3,7 +3,7 @@ PDF Generation Utility for Tour Management
 Uses WeasyPrint to generate PDFs from HTML templates
 """
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from django.conf import settings
 from django.template.loader import render_to_string
 try:
@@ -151,6 +151,25 @@ def generate_lead_pdf(lead_data, company_profile_data=None, created_by_data=None
 
         # Extract package data with all fields
         package_data = lead_data.get('package', {})
+
+        # Calculate dates for itinerary if start date is available
+        travel_start_date_str = lead_data.get('travel_start_date')
+        if travel_start_date_str:
+            try:
+                # Handle possible formats
+                if isinstance(travel_start_date_str, str):
+                    if 'T' in travel_start_date_str:
+                        start_date = datetime.fromisoformat(travel_start_date_str).date()
+                    else:
+                        start_date = datetime.strptime(travel_start_date_str, '%Y-%m-%d').date()
+                        
+                    for day in package_data.get('itinerary_details', []):
+                        day_num = day.get('day', 1)
+                        # Assuming day 1 is the start date
+                        current_date = start_date + timedelta(days=int(day_num) - 1)
+                        day['date'] = current_date.strftime('%a, %d %b %Y') # e.g. Mon, 25 Dec 2025
+            except (ValueError, TypeError) as e:
+                print(f"Error calculating dates: {e}")
 
         # Prepare comprehensive context for template with ALL available data
         context = {
