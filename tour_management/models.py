@@ -502,6 +502,8 @@ class Package(models.Model):
     is_active = models.BooleanField(default=True)
     image_ids = models.JSONField(blank=True, null=True)  # List of image IDs
     terms_and_conditions = models.TextField(blank=True, null=True)
+    inclusions = models.TextField(blank=True, null=True)
+    exclusions = models.TextField(blank=True, null=True)
 
     class Meta:
         db_table = 'Package'
@@ -772,8 +774,8 @@ class LeadPackage(models.Model):
 
     # Snapshot fields - stored as JSON for complete package data
     package_images = models.JSONField(blank=True, null=True)  # List of image objects
-    package_inclusions = models.JSONField(blank=True, null=True)  # List of inclusion objects
-    package_exclusions = models.JSONField(blank=True, null=True)  # List of exclusion objects
+    package_inclusions = models.TextField(blank=True, null=True)
+    package_exclusions = models.TextField(blank=True, null=True)
     package_amenities = models.JSONField(blank=True, null=True)  # List of amenity objects
     package_policies = models.JSONField(blank=True, null=True)  # List of policy objects
 
@@ -985,8 +987,8 @@ class Transaction(models.Model):
     selected_package_option_amount = models.DecimalField(max_digits=15, decimal_places=2, blank=True, null=True)  # Option's base price
 
     # Snapshot of package-level data (from lead)
-    package_inclusions = models.JSONField(blank=True, null=True)
-    package_exclusions = models.JSONField(blank=True, null=True)
+    package_inclusions = models.TextField(blank=True, null=True)
+    package_exclusions = models.TextField(blank=True, null=True)
     package_amenities = models.JSONField(blank=True, null=True)
     package_policies = models.JSONField(blank=True, null=True)
     package_images = models.JSONField(blank=True, null=True)
@@ -1078,7 +1080,7 @@ class ImageMetadata(models.Model):
 
     tour_operator = models.ForeignKey(Touroperator, on_delete=models.CASCADE)
     module = models.CharField(max_length=50, choices=MODULE_CHOICES)
-    record_id = models.BigIntegerField()  # Foreign key to the actual record
+    record_id = models.CharField(max_length=255)  # Foreign key to the actual record (UUID)
 
     image_path = models.ImageField(upload_to="images/%Y/%m/%d")
     upload_date = models.DateTimeField(auto_now_add=True)
@@ -1098,28 +1100,28 @@ class ImageMetadata(models.Model):
         """Get the entity this image belongs to."""
         if self.module == 'hotel':
             from .models import Hotel
-            return Hotel.objects.filter(id=self.record_id).first()
+            return Hotel.objects.filter(uuid=self.record_id).first()
         elif self.module == 'room':
             from .models import Room
-            return Room.objects.filter(id=self.record_id).first()
+            return Room.objects.filter(uuid=self.record_id).first()
         elif self.module == 'package':
             from .models import Package
-            return Package.objects.filter(id=self.record_id).first()
+            return Package.objects.filter(uuid=self.record_id).first()
         elif self.module == 'destination':
             from .models import Destination
-            return Destination.objects.filter(id=self.record_id).first()
+            return Destination.objects.filter(uuid=self.record_id).first()
         elif self.module == 'car_dealer':
             from .models import Cardealer
-            return Cardealer.objects.filter(id=self.record_id).first()
+            return Cardealer.objects.filter(uuid=self.record_id).first()
         elif self.module == 'event':
             from .models import Event
-            return Event.objects.filter(id=self.record_id).first()
+            return Event.objects.filter(uuid=self.record_id).first()
         elif self.module == 'sightseeing':
             from .models import SightSeeing
-            return SightSeeing.objects.filter(id=self.record_id).first()
+            return SightSeeing.objects.filter(uuid=self.record_id).first()
         elif self.module == 'itinerary_item':
             from .models import Itineraryitem
-            return Itineraryitem.objects.filter(id=self.record_id).first()
+            return Itineraryitem.objects.filter(uuid=self.record_id).first()
         return None
 
     def save(self, *args, **kwargs):

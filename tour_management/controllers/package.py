@@ -1,4 +1,5 @@
 from __future__ import unicode_literals
+import uuid
 from django.http import HttpResponse, HttpResponseBadRequest
 import json
 from ..models import User, Touroperator,Destination, Location, PackageCarDealerMapping,Itineraryitem, PackageHotelMapping, Package, Event, SightSeeing, Packageitineraryitem, DestinationPackageMapping, Hotel, Cardealer, QuickHotel, Inclusion, Exclusion, ImageMetadata, PackageOption, PackageOptionHotelMapping, PackageOptionCarDealerMapping, Room, StateCityToDestinationMapping
@@ -370,14 +371,8 @@ def get_package(request):
                 })
 
             # Get inclusions and exclusions for the package
-            package_inclusions = [
-                {"id": str(inc.uuid), "name": inc.name, "description": inc.description}
-                for inc in Inclusion.objects.filter(type="package", type_id=package.id)
-            ]
-            package_exclusions = [
-                {"id": str(exc.uuid), "name": exc.name, "description": exc.description}
-                for exc in Exclusion.objects.filter(type="package", type_id=package.id)
-            ]
+            package_inclusions = package.inclusions
+            package_exclusions = package.exclusions
 
             # Get package images
             package_images = get_images('package', str(package.uuid), include_binary=False)
@@ -546,7 +541,9 @@ def add_package(request):
                     package_amount=data.get('package_amount', 0.0),
                     notes=data.get('notes', ''),
                     is_active=data.get('is_active', True),
-                    terms_and_conditions=data.get('terms_and_conditions', '')
+                    terms_and_conditions=data.get('terms_and_conditions', ''),
+                    inclusions=data.get('inclusions', ''),
+                    exclusions=data.get('exclusions', '')
                 )
 
                 # Add Destination mappings
@@ -651,26 +648,7 @@ def add_package(request):
                         )
 
                 # Add inclusions and exclusions
-                if "inclusions" in data:
-                    for inclusion in data['inclusions']:
-                        Inclusion.objects.create(
-                            tour_operator=tour_operator,
-                            created_by=created_by,
-                            name=inclusion['name'],
-                            description=inclusion.get('description', ''),
-                            type="package",
-                            type_id=package.id
-                        )
-                if "exclusions" in data:
-                    for exclusion in data['exclusions']:
-                        Exclusion.objects.create(
-                            tour_operator=tour_operator,
-                            created_by=created_by,
-                            name=exclusion['name'],
-                            description=exclusion.get('description', ''),
-                            type="package",
-                            type_id=package.id
-                        )
+
 
                 # Add Package Options (if provided)
                 if "package_options" in data and data['package_options']:
@@ -794,6 +772,8 @@ def update_package(request):
                 package.is_active = data.get('is_active', True)
                 package.destination = destination
                 package.terms_and_conditions = data.get('terms_and_conditions', '')
+                package.inclusions = data.get('inclusions', '')
+                package.exclusions = data.get('exclusions', '')
                 package.save()
 
                 # Update Destination Mappings
@@ -903,30 +883,7 @@ def update_package(request):
                             day=day
                         )
 
-                # Update Inclusions and Exclusions
-                Inclusion.objects.filter(type="package", type_id=package.id).delete()
-                if "inclusions" in data:
-                    for inclusion in data['inclusions']:
-                        Inclusion.objects.create(
-                            tour_operator=tour_operator,
-                            created_by=created_by,
-                            name=inclusion['name'],
-                            description=inclusion.get('description', ''),
-                            type="package",
-                            type_id=package.id
-                        )
 
-                Exclusion.objects.filter(type="package", type_id=package.id).delete()
-                if "exclusions" in data:
-                    for exclusion in data['exclusions']:
-                        Exclusion.objects.create(
-                            tour_operator=tour_operator,
-                            created_by=created_by,
-                            name=exclusion['name'],
-                            description=exclusion.get('description', ''),
-                            type="package",
-                            type_id=package.id
-                        )
 
                 # Update Package Options (if provided)
                 if "package_options" in data:
@@ -1067,7 +1024,7 @@ def delete_package(request):
                 status=404
             )
 
-        if package.tour_operator.uuid != tour_operator_id:
+        if str(package.tour_operator.uuid) != str(tour_operator_id):
             return JsonResponse(
                 {"error": "Package does not belong to the specified tour operator."},
                 status=403
@@ -1104,3 +1061,102 @@ def delete_package(request):
         return JsonResponse({"error": "Invalid JSON in request body"}, status=400)
     except Exception as e:
         return JsonResponse({"error": f"An error occurred: {str(e)}"}, status=500)
+
+def duplicate_package(request):
+    if request.method != 'POST':
+        return JsonResponse({"error": "Only POST method is allowed"}, status=405)
+
+    try:
+        data = json.loads(request.body.decode("utf-8"))
+        if 'package_id' not in data or 'tour_operator_id' not in data:
+            return JsonResponse({"error": "package_id and tour_operator_id are required"}, status=400)
+
+        package_id = data['package_id']
+        tour_operator_id = data['tour_operator_id']
+
+        with transaction.atomic():
+            # 1. Fetch original package
+            original_package = Package.objects.get(uuid=package_id, tour_operator__uuid=tour_operator_id)
+
+            # 2. Duplicate the package
+            # We must fetch a fresh instance or copy values because setting pk=None on the same instance
+            # and saving it works, but we want to be explicit.
+            # Actually, the standard way in Django to clone is:
+            # obj = MyModel.objects.get(pk=...)
+            # obj.pk = None
+            # obj.save()
+            
+            # Using the instance fetched above
+            new_package = Package.objects.get(uuid=package_id) 
+            new_package.pk = None
+            new_package.uuid = uuid.uuid4()
+            new_package.name = "Copy of " + original_package.name
+            new_package.save()
+
+            # 3. Duplicate Destination Mappings
+            destination_mappings = DestinationPackageMapping.objects.filter(package_id=original_package)
+            for mapping in destination_mappings:
+                mapping.pk = None
+                mapping.uuid = uuid.uuid4()
+                mapping.package_id = new_package
+                mapping.save()
+
+            # 4. Duplicate Itinerary Items
+            itinerary_items = Packageitineraryitem.objects.filter(package=original_package)
+            for item in itinerary_items:
+                item.pk = None
+                item.uuid = uuid.uuid4()
+                item.package = new_package
+                item.save()
+            
+            # 5. Duplicate Package Options
+            package_options = PackageOption.objects.filter(package=original_package)
+            for option in package_options:
+                original_option_id = option.id
+                option.pk = None
+                option.uuid = uuid.uuid4()
+                option.package = new_package
+                option.save() # New option saved, now 'option' refers to the new object in memory/DB
+
+                # Duplicate Hotel Mappings for this option
+                # We need to query using the ORIGINAL option ID
+                hotel_mappings = PackageOptionHotelMapping.objects.filter(package_option_id=original_option_id)
+                for hotel_map in hotel_mappings:
+                    hotel_map.pk = None
+                    hotel_map.uuid = uuid.uuid4()
+                    hotel_map.package_option = option # Link to the NEW duplicated option
+                    hotel_map.save()
+                
+                # Duplicate Car Dealer Mappings for this option
+                car_mappings = PackageOptionCarDealerMapping.objects.filter(package_option_id=original_option_id)
+                for car_map in car_mappings:
+                    car_map.pk = None
+                    car_map.uuid = uuid.uuid4()
+                    car_map.package_option = option # Link to the NEW duplicated option
+                    car_map.save()
+
+            # 6. Duplicate Legacy Mappings (if any)
+            legacy_hotel_mappings = PackageHotelMapping.objects.filter(package=original_package)
+            for lhm in legacy_hotel_mappings:
+                lhm.pk = None
+                lhm.uuid = uuid.uuid4()
+                lhm.package = new_package
+                lhm.save()
+
+            legacy_car_mappings = PackageCarDealerMapping.objects.filter(package=original_package)
+            for lcm in legacy_car_mappings:
+                lcm.pk = None
+                lcm.uuid = uuid.uuid4()
+                lcm.package = new_package
+                lcm.save()
+            
+            return JsonResponse({
+                "message": "Package duplicated successfully",
+                "package_id": str(new_package.uuid),
+                "name": new_package.name
+            }, status=201)
+
+    except Package.DoesNotExist:
+        return JsonResponse({"error": "Package not found"}, status=404)
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)

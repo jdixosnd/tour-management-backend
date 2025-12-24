@@ -202,6 +202,9 @@ def generate_lead_pdf(lead_data, company_profile_data=None, created_by_data=None
 
                 # Package Options - with per-option hotel details
                 'package_options': package_data.get('package_options', []),
+
+                # Hotel Comparison Grid
+                'hotel_grid': package_data.get('hotel_grid', [])
             },
 
             # Company profile complete info

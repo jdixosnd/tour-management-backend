@@ -1,5 +1,6 @@
 from __future__ import unicode_literals
 import json
+from datetime import timedelta
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.request import Request
 from collections import defaultdict
@@ -255,6 +256,297 @@ def get_lead(request):
                     # Replace the basic ID list with enriched details
                     day_mapping['hotels_detailed'] = enriched_hotels
 
+
+
+            # --- NEW: Hotel Comparison Matrix Logic ---
+            # Group Itinerary Days into Segments (Location + Consecutive Days)
+            segments = []
+            current_segment = None
+            
+            # Helper to find day detail
+            def find_day_detail(d):
+                for detail in day_wise_details:
+                    if detail['day'] == d:
+                        return detail
+                return None
+
+            for day_curr in range(1, lead_package.no_of_days + 1):
+                day_detail = find_day_detail(day_curr)
+                
+                city = day_detail.get('city', '') if day_detail else ''
+                state = day_detail.get('state', '') if day_detail else ''
+                
+                if not city:
+                     # Fallback: Try to find city from hotel mappings if possible, or just leave blank
+                     # But for grouping, we treat blank as a group
+                     pass
+
+                # Identifier: City + State
+                loc_key = (str(city).strip(), str(state).strip())
+                
+                if current_segment and current_segment['loc_key'] == loc_key:
+                    # Continue segment
+                    current_segment['days'].append(day_curr)
+                    current_segment['end_day'] = day_curr
+                else:
+                    # New segment
+                    if current_segment:
+                        segments.append(current_segment)
+                    
+                    current_segment = {
+                        'loc_key': loc_key,
+                        'city': city,
+                        'state': state,
+                        'days': [day_curr],
+                        'start_day': day_curr,
+                        'end_day': day_curr
+                    }
+            if current_segment:
+                segments.append(current_segment)
+            
+            print(f"DEBUG: segments len: {len(segments)}")
+
+            # Build Grid
+            hotel_grid = []
+            travel_start_date = lead_package.lead.travel_start_date
+
+            for segment in segments:
+                row = {
+                    'location': f"{segment['city']}, {segment['state']}".strip(', '),
+                    'dates': f"Day {segment['start_day']} - {segment['end_day']}"
+                }
+                
+                # Calculate dates
+                if travel_start_date:
+                    try:
+                        check_in = travel_start_date + timedelta(days=segment['start_day'] - 1)
+                        # Check-out is next day after end_day? Or assuming end_day is included? 
+                        # Usually logic: Day 1-2 means stay night 1 & 2, checkout Day 3? 
+                        # Or Day 1-2 means stay Day 1 night, checkout Day 2?
+                        # Let's assume 'num_nights' = count of days in segment
+                        num_nights = len(segment['days'])
+                        check_out = check_in + timedelta(days=num_nights)
+                        row['dates'] = f"{check_in.strftime('%d %b')} - {check_out.strftime('%d %b')}"
+                    except:
+                        pass
+
+                row['options'] = []
+                
+                # For each Option, find hotel for this segment
+                for option in package_options_data:
+                    # Find hotel for the FIRST day of this segment (assuming consistency)
+                    target_day = segment['start_day']
+                    
+                    # Find mapping for this option and day
+                    mapping = LeadPackageOptionHotelMapping.objects.filter(
+                        lead_package_option__uuid=option['id'],
+                        day=target_day 
+                    ).select_related('hotel', 'selected_room_type').first()
+                    
+                    cell_data = {'id': option['id'], 'name': option['name'], 'valid': False}
+                    
+                    if mapping:
+                        cell_data['valid'] = True
+                        
+                        # Hotel details
+                        if mapping.hotel:
+                            cell_data['hotel_name'] = mapping.hotel.name
+                            cell_data['rating'] = float(mapping.hotel.ratings) if mapping.hotel.ratings else 0
+                            cell_data['meal_plan'] = getattr(mapping.hotel, 'meal_type', '') or ''
+                            
+                            # Room details
+                            if mapping.room_snapshot:
+                                cell_data['room_type'] = mapping.room_snapshot.get('name', '')
+                                cell_data['price'] = mapping.room_snapshot.get('price_per_night', 0)
+                            elif mapping.selected_room_type:
+                                cell_data['room_type'] = mapping.selected_room_type.name
+                                cell_data['price'] = mapping.selected_room_type.price_per_night
+                                
+                        elif mapping.quick_hotel_data:
+                            cell_data['hotel_name'] = mapping.quick_hotel_data.get('hotel_name')
+                            cell_data['room_type'] = mapping.quick_hotel_data.get('room_type')
+                            cell_data['price'] = mapping.quick_hotel_data.get('price_per_night')
+                            cell_data['meal_plan'] = mapping.quick_hotel_data.get('meal_type', '')
+                            cell_data['rating'] = 0
+
+                        cell_data['details_hash'] = f"{cell_data.get('hotel_name')}-{cell_data.get('room_type')}-{cell_data.get('meal_plan')}"
+
+                    else:
+                        cell_data['text'] = "-"
+                        cell_data['details_hash'] = "none"
+
+                    row['options'].append(cell_data)
+
+                # Post-process for colspan logic
+                # If Option 2 is same as Option 1, mark Option 1 colspan + 1 and hide Option 2
+                
+                # Simplified colspan logic: Iterate and merge consecutive identicals
+                merged_options = []
+                if row['options']:
+                    current_cell = row['options'][0]
+                    current_cell['colspan'] = 1
+                    merged_options.append(current_cell)
+                    
+                    for i in range(1, len(row['options'])):
+                        next_cell = row['options'][i]
+                        # Compare content
+                        if (current_cell.get('valid') and next_cell.get('valid') and 
+                            current_cell.get('details_hash') == next_cell.get('details_hash')):
+                            current_cell['colspan'] += 1
+                        else:
+                            # New block
+                            current_cell = next_cell
+                            current_cell['colspan'] = 1
+                            merged_options.append(current_cell)
+                
+                row['merged_options'] = merged_options
+                hotel_grid.append(row)
+
+
+
+            # --- NEW: Create consolidated hotel list for "Hotel Options" table in PDF ---
+            # Group by Hotel+RoomType to show date ranges (e.g. 12 Dec - 14 Dec) instead of day-wise rows
+            for option_data in package_options_data:
+                consolidated_hotels = []
+                current_stay = None
+                
+                # Fetch raw mappings again to process sequentially
+                # We can reuse the order from the loop above but it's nested in day_hotel_map
+                # Better to use the database query result order
+                raw_mappings = LeadPackageOptionHotelMapping.objects.filter(
+                    lead_package_option__uuid=option_data['id']
+                ).select_related('hotel', 'selected_room_type').order_by('day')
+
+                for m in raw_mappings:
+                    # Skip if mixed with quick hotel (handled separately)
+                    if m.quick_hotel_data:
+                        # Quick hotels are ad-hoc, treat as single day entries usually
+                        consolidated_hotels.append({
+                            'type': 'quick',
+                            'name': m.quick_hotel_data.get('hotel_name'),
+                            'city': '', # Quick hotel data might not have city easily accessible unless parsed
+                            'address': m.quick_hotel_data.get('address'),
+                            'room_type': m.quick_hotel_data.get('room_type'),
+                            'check_in': None,
+                            'check_out': None,
+                            'num_nights': 1,
+                            'dates': f"Day {m.day}"
+                        })
+                        continue
+
+                    if not m.hotel:
+                        continue
+
+                    # Identifier for grouping: Hotel ID + Room Type ID
+                    room_id = m.selected_room_type.id if m.selected_room_type else None
+                    stay_key = (m.hotel.id, room_id)
+
+                    is_continuation = False
+                    if current_stay:
+                        # Check if same hotel/room and next day
+                        if current_stay['key'] == stay_key and m.day == current_stay['last_day'] + 1:
+                            is_continuation = True
+                    
+                    if is_continuation:
+                        current_stay['last_day'] = m.day
+                        current_stay['num_nights'] += 1
+                        current_stay['room_qty'] = max(current_stay['room_qty'], m.room_quantity or 0) # Use max if varies?
+                    else:
+                        # Save previous
+                        if current_stay:
+                            consolidated_hotels.append(current_stay)
+                        
+                        # Start new stay
+                        current_stay = {
+                            'type': 'regular',
+                            'key': stay_key,
+                            'hotel_uuid': str(m.hotel.uuid),
+                            'start_day': m.day,
+                            'last_day': m.day,
+                            'num_nights': 1,
+                            'room_qty': m.room_quantity,
+                            'room_snapshot': m.room_snapshot,
+                            'room_obj': m.selected_room_type,
+                            'hotel_obj': m.hotel
+                        }
+                
+                # Append last one
+                if current_stay:
+                    consolidated_hotels.append(current_stay)
+
+                # Now enrich consolidated list with details and dates
+                travel_start_date = lead_package.lead.travel_start_date
+                
+                final_hotel_list = []
+                for stay in consolidated_hotels:
+                    if stay['type'] == 'quick':
+                        final_hotel_list.append(stay)
+                        continue
+                        
+                    # Calculate dates
+                    date_str = f"Day {stay['start_day']} - Day {stay['last_day'] + 1}"
+                    if travel_start_date:
+                        try:
+                            check_in = travel_start_date + timedelta(days=stay['start_day'] - 1)
+                            check_out = check_in + timedelta(days=stay['num_nights'])
+                            # Format: 12 Dec - 14 Dec
+                            stay['check_in'] = check_in.strftime('%d %b')
+                            stay['check_out'] = check_out.strftime('%d %b')
+                            date_str = f"{stay['check_in']} - {stay['check_out']}"
+                        except Exception:
+                            pass # Fallback to Day X
+                    
+                    stay['dates'] = date_str
+
+                    # Fetch Hotel Details
+                    hotel_details = get_hotel_by_id(stay['hotel_obj'].id)
+                    hotel_obj = stay['hotel_obj']
+                    
+                    # Merge specific room details
+                    room_name = ""
+                    meal_plan = getattr(hotel_obj, 'meal_type', '') or '' # Fallback to hotel's meal type
+                    room_price = 0
+                    
+                    if stay['room_snapshot']:
+                        room_name = stay['room_snapshot'].get('name', '')
+                        # Try to find price
+                        room_price = stay['room_snapshot'].get('price_per_night', 0)
+                        
+                        # Use valid meal plan from snapshot if available, else stick to hotel's
+                        # Snapshot might not typically have meal_plan unless custom added
+                    elif stay['room_obj']:
+                        # Fetch room object again or use from hotel_details
+                        # Try to find in hotel_details['rooms']
+                        rooms = hotel_details.get('rooms', [])
+                        selected_room = next((r for r in rooms if r['id'] == str(stay['room_obj'].uuid) or r['id'] == stay['room_obj'].id), None)
+                        if selected_room:
+                             room_name = selected_room.get('name', '')
+                             room_name += f" ({selected_room.get('type', '')})"
+                             room_price = selected_room.get('price_per_night', 0)
+                        else:
+                             # Fallback to direct object access
+                             room_name = stay['room_obj'].name
+                             room_price = stay['room_obj'].price_per_night
+
+                    final_hotel_list.append({
+                        'name': hotel_details.get('name'),
+                        'city': hotel_details.get('location', {}).get('city', ''),
+                        'state': hotel_details.get('location', {}).get('state', ''),
+                        'rating': hotel_details.get('ratings'),
+                        'room_type': room_name,
+                        'meal_plan': meal_plan,
+                        'room_quantity': stay['room_qty'],
+                        'dates': date_str,
+                        'num_nights': stay['num_nights'],
+                        'price': room_price
+                    })
+                
+                # Add rowspan info for PDF
+                if final_hotel_list:
+                    final_hotel_list[0]['option_rowspan'] = len(final_hotel_list)
+                
+                option_data['consolidated_hotels'] = final_hotel_list
+
             # Structure final lead package data (matching package API response format)
             lead_package_data = {
                 "id": str(lead_package.uuid),
@@ -269,12 +561,13 @@ def get_lead(request):
                 "type": lead_package.type,
                 "terms_and_conditions": lead_package.terms_and_conditions,
                 "itinerary_details": day_wise_details,
-                "inclusions": lead_package.package_inclusions or [],
-                "exclusions": lead_package.package_exclusions or [],
+                "inclusions": lead_package.package_inclusions or "",
+                "exclusions": lead_package.package_exclusions or "",
                 "images": lead_package.package_images or [],
                 "amenities": lead_package.package_amenities or [],
                 "policies": lead_package.package_policies or [],
-                "package_options": package_options_data
+                "package_options": package_options_data,
+                "hotel_grid": hotel_grid
             }
 
             # Include lead metadata
@@ -764,8 +1057,8 @@ def add_lead(request):
                     terms_and_conditions=pkg_snapshot.get('terms_and_conditions', ''),
                     # Store snapshot data as JSON
                     package_images=pkg_snapshot.get('images', []),
-                    package_inclusions=pkg_snapshot.get('inclusions', []),
-                    package_exclusions=pkg_snapshot.get('exclusions', []),
+                    package_inclusions=pkg_snapshot.get('inclusions', ''),
+                    package_exclusions=pkg_snapshot.get('exclusions', ''),
                     package_amenities=pkg_snapshot.get('amenities', []),
                     package_policies=pkg_snapshot.get('policies', [])
                 )

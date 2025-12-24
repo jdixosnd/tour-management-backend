@@ -66,6 +66,7 @@ urlpatterns = [
         path('package/get/', package.get_package, name='get_package'),
         path('package/update/', package.update_package, name='update_package'),
         path('package/delete/', package.delete_package, name='delete_package'),
+        path('package/duplicate/', package.duplicate_package, name='duplicate_package'),
 
         path('transaction/add/',transaction.add_transaction, name='add_transaction'),
         path('transaction/get/',transaction.get_transaction, name='get_transaction'),

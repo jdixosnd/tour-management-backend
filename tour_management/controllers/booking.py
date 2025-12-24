@@ -118,8 +118,8 @@ def add_booking(request):
                 selected_package_option_name=selected_option_name,
                 selected_package_option_amount=Decimal(str(selected_option_amount)) if selected_option_amount else None,
 
-                package_inclusions=package_snapshot.get('inclusions', []),
-                package_exclusions=package_snapshot.get('exclusions', []),
+                package_inclusions=package_snapshot.get('inclusions', ''),
+                package_exclusions=package_snapshot.get('exclusions', ''),
                 package_amenities=package_snapshot.get('amenities', []),
                 package_policies=package_snapshot.get('policies', []),
                 package_images=package_snapshot.get('images', []),

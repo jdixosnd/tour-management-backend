@@ -277,7 +277,7 @@ def delete_image(request):
 
         try:
             # Retrieve the image entry from the database
-            image = ImageMetadata.objects.get(uuid=image_id)
+            image = ImageMetadata.objects.get(id=image_id)
 
             # Remove the image ID from the image_ids field of the corresponding entity
             module = image.module
