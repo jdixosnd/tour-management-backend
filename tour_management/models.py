@@ -54,7 +54,9 @@ PACKAGE_TYPES= (
 )
 
 USER_ROLES = (
+    ("admin","Admin"),
     ("manager","Manager"),
+    ("staff","Staff"),
     ("user","User"),
 )
 class Touroperator(models.Model):
@@ -201,7 +203,7 @@ class Cardealer(models.Model):
     name = models.CharField(max_length=255)
     contact_no = models.CharField(max_length=15, blank=True, null=True)
     created_at = models.DateTimeField(auto_now=True)
-    image_ids = models.JSONField(default=list, blank=True, null=True)  # List of image IDs
+    image_ids = models.JSONField(blank=True, null=True)  # List of image IDs
 
     class Meta:
         db_table = 'CarDealer'
@@ -246,7 +248,7 @@ class Destination(models.Model):
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now=True)
-    image_ids = models.JSONField(default=list, blank=True, null=True)  # List of image IDs
+    image_ids = models.JSONField(blank=True, null=True)  # List of image IDs
 
     def __str__(self):
         return self.name
@@ -306,7 +308,7 @@ class Event(models.Model):
     contact_no = models.CharField(max_length=15, blank=True, null=True)
     charges = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
     created_at = models.DateTimeField(auto_now=True)
-    image_ids = models.JSONField(default=list, blank=True, null=True)  # List of image IDs
+    image_ids = models.JSONField(blank=True, null=True)  # List of image IDs
 
     class Meta:
         db_table = 'Event'
@@ -343,7 +345,7 @@ class SightSeeing(models.Model):
     contact_no = models.CharField(max_length=15, blank=True, null=True)
     charges = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
     created_at = models.DateTimeField(auto_now=True)
-    image_ids = models.JSONField(default=list, blank=True, null=True)  # List of image IDs
+    image_ids = models.JSONField(blank=True, null=True)  # List of image IDs
 
     class Meta:
         db_table = 'SightSeeing'
@@ -556,7 +558,7 @@ class Itineraryitem(models.Model):
     description = models.TextField(blank=True, null=True)
     created_by = models.ForeignKey(User, blank=True, null=True, on_delete=models.CASCADE)
     created_at = models.DateTimeField(auto_now=True)
-    image_ids = models.JSONField(default=list, blank=True, null=True)  # List of image IDs
+    image_ids = models.JSONField(blank=True, null=True)  # List of image IDs
 
     class Meta:
         db_table = 'ItineraryItem'
@@ -1199,8 +1201,8 @@ class CompanyProfile(models.Model):
     established_year = models.PositiveIntegerField(blank=True, null=True)
 
     # Images (stored as JSON list of image IDs)
-    logo_image_ids = models.JSONField(default=list, blank=True, null=True)  # Company logo
-    banner_image_ids = models.JSONField(default=list, blank=True, null=True)  # Banner/cover images
+    logo_image_ids = models.JSONField(blank=True, null=True)  # Company logo
+    banner_image_ids = models.JSONField(blank=True, null=True)  # Banner/cover images
 
     # Metadata
     created_at = models.DateTimeField(auto_now_add=True)

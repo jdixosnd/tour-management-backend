@@ -34,7 +34,7 @@ def add_tour_operator(request):
             # Return success response with the new tour operator's ID
             return JsonResponse({
                 "message": "Tour operator added successfully",
-                "tour_operator_id": tour_operator.id
+                "tour_operator_id": str(tour_operator.uuid)
             }, status=201)
         except Exception as e:
             return JsonResponse({"error": str(e)}, status=500)

@@ -28,6 +28,21 @@ def add_user(request):
 
       
 
+        # Check for requester_id for RBAC
+        requester_id = data.get('requester_id')
+        if requester_id:
+             try:
+                 requester = User.objects.get(uuid=requester_id)
+                 if requester.role == 'manager':
+                     if data['role'] in ['admin', 'manager']:
+                         return JsonResponse({"error": "Managers cannot create Admin or Manager accounts.", "code": 403}, status=403)
+                 elif requester.role == 'staff':
+                      return JsonResponse({"error": "Staff cannot create users.", "code": 403}, status=403)
+                 # Admin can do anything
+             except User.DoesNotExist:
+                 return JsonResponse({"error": "Requester user not found"}, status=400)
+        
+        
         touroperator = Touroperator.objects.filter(uuid = data['tour_operator_id'])[0]
         total_active_users = User.objects.filter(tour_operator_id__uuid=data['tour_operator_id'],is_active=True).count()
         if total_active_users >= touroperator.get_max_users():
@@ -141,15 +156,23 @@ def validate_user(request):
 def update_user(request):
  
     # Attempt to retrieve the user based on email, mobile number, or username
+    # Attempt to retrieve the user based on email, mobile number, or username
     if request.method == 'POST':
         data = json.loads(request.body.decode("utf-8"))
+        
+        # Check for requester_id
+        if 'requester_id' not in data:
+            return JsonResponse({"error": "requester_id is required"}, status=400)
+            
         required_fields = ["id", "name", "role", "mobileno", "is_active"]
         missing_fields = [field for field in required_fields if field not in data]
         if missing_fields:
             return JsonResponse({"error": f"Missing fields: {', '.join(missing_fields)}"}, status=400)
         
-        
-        
+        try:
+            requester = User.objects.get(uuid=data['requester_id'])
+        except User.DoesNotExist:
+             return JsonResponse({"error": "Requester user not found"}, status=400)
 
         try:
             id = data['id']
@@ -158,11 +181,32 @@ def update_user(request):
             mobileno = data['mobileno']
             is_active = data['is_active']
 
-
-
             user = User.objects.get(models.Q(uuid=id))
+            
+            # RBAC Logic
+            
+            # Global: You cannot change your own role
+            if str(user.uuid) == str(requester.uuid) and role != user.role:
+                return JsonResponse({"error": "You cannot change your own role.", "code": 403}, status=403)
+
+            if requester.role == 'admin':
+                pass # Admin can manage all users
+            elif requester.role == 'manager':
+                if user.role != 'staff' and user.role != 'user':
+                    return JsonResponse({"error": "Manager can only update Staff or User roles.", "code": 403}, status=403)
+                if role in ['admin', 'manager'] and role != user.role:
+                     return JsonResponse({"error": "Manager cannot promote users to Admin or Manager.", "code": 403}, status=403)
+            elif requester.role == 'staff':
+                if str(user.uuid) != str(requester.uuid):
+                    return JsonResponse({"error": "Staff can only update themselves.", "code": 403}, status=403)
+                if role != user.role:
+                     return JsonResponse({"error": "Staff cannot change their own role. Please contact Admin or Manager.", "code": 403}, status=403)
+            else:
+                 # Deny other roles
+                 return JsonResponse({"error": "Permission denied.", "code": 403}, status=403)
+
             total_active_users = User.objects.filter(tour_operator_id=user.tour_operator_id,is_active=True).count()
-            if user.is_active == False:
+            if user.is_active == False and is_active == True: # Check only if activating
                 if total_active_users >= user.tour_operator_id.get_max_users():
                     return JsonResponse({
                         "code":400,
