@@ -11,7 +11,7 @@ from tour_management.views import probe
 from tour_management.controllers import (user, location, destination, hotel,
                                           cardealer, package, event, amenity,
                                             inclusion, exclusion, policy, transaction, touroperator,
-                                            lead, customer, booking, company_profile, lead_pdf)
+                                            lead, customer, booking, company_profile, lead_pdf, dashboard)
 from tour_management import images
 urlpatterns = [
     url(r'^tour_management/$',
@@ -95,6 +95,13 @@ urlpatterns = [
         path('company_profile/add/', company_profile.add_company_profile, name='add_company_profile'),
         path('company_profile/get/', company_profile.get_company_profile, name='get_company_profile'),
         path('company_profile/update/', company_profile.update_company_profile, name='update_company_profile'),
+
+        # Dashboard APIs
+        path('dashboard/sales/', dashboard.get_sales_analytics, name='get_sales_analytics'),
+        path('dashboard/bookings/', dashboard.get_booking_analytics, name='get_booking_analytics'),
+        path('dashboard/leads/', dashboard.get_lead_analytics, name='get_lead_analytics'),
+        path('dashboard/products/', dashboard.get_product_analytics, name='get_product_analytics'),
+        path('dashboard/performance/', dashboard.get_user_performance, name='get_user_performance'),
 
         path('image/upload/',images.upload_images,name='upload_images'),
         path('image/get/',images.get_images,name='get_images'),
